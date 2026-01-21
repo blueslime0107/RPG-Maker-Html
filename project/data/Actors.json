@@ -1,0 +1,7 @@
+[
+null,
+{"id":1,"battlerName":"Actor1_1","characterIndex":4,"characterName":"TRI_char","classId":1,"equips":[2,0,0,3,0],"faceIndex":0,"faceName":"TRI","traits":[],"initialLevel":1,"maxLevel":99,"name":"삼각","nickname":"","note":"","profile":""},
+{"id":2,"battlerName":"Actor1_2","characterIndex":4,"characterName":"RED_char","classId":1,"equips":[1,0,0,9,0],"faceIndex":0,"faceName":"RET","traits":[],"initialLevel":1,"maxLevel":99,"name":"지사","nickname":"","note":"","profile":""},
+{"id":3,"battlerName":"Actor1_3","characterIndex":2,"characterName":"Actor1","classId":5,"equips":[31,0,65,5,0],"faceIndex":2,"faceName":"Nature2","traits":[],"initialLevel":1,"maxLevel":99,"name":"닭","nickname":"","note":"","profile":""},
+{"id":4,"battlerName":"Actor1_4","characterIndex":3,"characterName":"Actor1","classId":5,"equips":[31,0,0,5,0],"faceIndex":3,"faceName":"Actor1","traits":[],"initialLevel":1,"maxLevel":99,"name":"미쉘","nickname":"","note":"","profile":""}
+]
