@@ -1,0 +1,648 @@
+/* 기본 레이아웃 */
+body, html {
+    margin: 0; padding: 0; height: 100%;
+    background-color: #333; color: white; overflow: hidden;
+    font-family: sans-serif;
+}
+
+#editor-container {
+    display: flex; flex-direction: column; height: 100vh;
+}
+
+/* 툴바 */
+#toolbar {
+    height: 40px; background: #222; display: flex; align-items: center;
+    padding: 0 10px; gap: 20px; border-bottom: 1px solid #444;
+}
+
+.tool-group { display: flex; align-items: center; gap: 8px; }
+
+/* 폰트 크기 슬라이더 스타일 */
+#inspector-font-size {
+    cursor: pointer;
+    height: 4px;
+    border-radius: 2px;
+    background: #444;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#inspector-font-size::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #3498db;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#inspector-font-size::-webkit-slider-thumb:hover {
+    background: #5dade2;
+}
+
+#inspector-font-size::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #3498db;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+
+#inspector-font-size::-moz-range-thumb:hover {
+    background: #5dade2;
+}
+
+#font-size-display {
+    font-family: 'Courier New', monospace;
+    color: #aaa;
+}
+
+/* 워크스페이스 */
+#workspace {
+    display: flex; flex: 1; overflow: hidden;
+}
+
+/* 사이드 패널 내부 레이아웃 조정 */
+#side-panel {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #444;
+    background: #2a2a2a;
+}
+
+/* 타일셋 뷰어 영역 (상단 고정 높이 또는 유연하게) */
+#tileset-window {
+    flex: 1; /* 남은 공간 차지 */
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* flex 자식의 overflow 허용을 위한 설정 */
+}
+
+.tab-btn:hover { background: #444; }
+.tab-btn.active {
+    background: #2a2a2a;
+    color: #fff;
+    border-bottom: 2px solid #3498db; /* 강조선 추가 */
+}
+
+.panel-header {
+    padding: 6px 12px;
+    background: #1a1a1a;
+    color: #aaa;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#map-list li {
+    padding: 8px 15px;
+    border-bottom: 1px solid #2d2d2d;
+    color: #ddd;
+    font-size: 0.9em;
+}
+
+#map-list li.selected {
+    background: #3498db;
+    color: white;
+}
+
+#map-grid-container {
+    position: relative; box-shadow: 0 0 10px #000;
+}
+
+#map-canvas { background-color: #000; }
+
+/* 체크무늬 배경 정의 */
+.checkerboard {
+    background-color: #1a1a1a;
+    background-image: 
+        linear-gradient(45deg, #252525 25%, transparent 25%), 
+        linear-gradient(-45deg, #252525 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #252525 75%), 
+        linear-gradient(-45deg, transparent 75%, #252525 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+/* 캔버스의 하단 베이스라인 여백 제거 */
+#map-canvas {
+    display: block; 
+    background-color: #000;
+}
+
+/* 부모 컨테이너가 캔버스 크기에 딱 맞게 함 */
+#map-grid-container {
+    position: relative;
+    box-shadow: 0 0 20px #000;
+    
+    /* 체크무늬 배경 유지 */
+    background-color: #1a1a1a;
+    background-image: 
+        linear-gradient(45deg, #252525 25%, transparent 25%), 
+        linear-gradient(-45deg, #252525 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #252525 75%), 
+        linear-gradient(-45deg, transparent 75%, #252525 75%);
+    background-size: 24px 24px;
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+}
+
+/* 맵 에디터 여백 영역 */
+#map-editor {
+    flex: 1;
+    background: #111111; /* 캔버스 바깥쪽은 아주 어둡게 */
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 50px; /* 맵 주변에 여유 공간 */
+}
+
+/* 맵 트리 레이아웃 */
+#map-list {
+    padding: 5px 0;
+    user-select: none;
+}
+
+.map-node-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.map-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #ccc;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.map-item:hover {
+    background: #3a3a3a;
+}
+
+.map-item.selected {
+    background: #3498db;
+    color: white;
+}
+
+/* 자식 노드 들여쓰기 */
+.map-children {
+    padding-left: 16px; /* 계층 깊이 표현 */
+    border-left: 1px dotted #444;
+    margin-left: 12px;
+}
+
+/* 토글 아이콘 */
+.toggle-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    font-size: 0.7em;
+    color: #888;
+}
+
+.toggle-icon:hover {
+    color: white;
+}
+
+.map-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#tileset-selection-rect {
+    position: absolute;
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 1px #000000; /* 하얀 테두리 밖의 검은 외곽선으로 가독성 확보 */
+    background-color: rgba(255, 255, 255, 0.1);
+    pointer-events: none;
+    display: none;
+    z-index: 100;
+}
+
+/* 사이드 패널 전체 너비 고정 */
+#side-panel {
+    width: 384px; /* 48px * 8개 + (선택사항: 스크롤바 너비 고려 시 약 400px) */
+    min-width: 384px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #111;
+    background: #2a2a2a;
+    overflow: hidden;
+}
+
+/* 타일셋 윈도우 영역 */
+#tileset-window {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+#tileset-view-container {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #111;
+    position: relative;
+}
+
+/* 캔버스 가로를 컨테이너에 맞춤 (하지만 드로잉은 384px 기준) */
+#tileset-canvas {
+    display: block;
+    width: 384px; /* 캔버스 물리 크기 고정 */
+}
+
+/* 맵 관리 및 탭 영역 너비 통일 */
+#map-management {
+    width: 100%;
+    height: 350px;
+    display: flex;
+    flex-direction: column;
+    border-top: 2px solid #111;
+}
+
+.tileset-tabs {
+    width: 100%;
+    display: flex;
+    background: #383838;
+}
+
+.tab-btn {
+    flex: 1; /* 모든 버튼이 동일한 너비 점유 */
+    padding: 10px 0;
+    border-right: 1px solid #222;
+}
+
+#map-tree {
+    width: 100%;
+    flex: 1;
+    overflow-y: auto;
+    background: #222;
+}
+
+
+
+#workspace {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 40px);
+    overflow: hidden;
+}
+
+/* 중앙 맵 영역 */
+#map-editor {
+    flex: 1; /* 남은 공간을 모두 차지 */
+    background-color: #1e1e1e;
+    position: relative;
+    overflow: auto;
+}
+
+/* 오른쪽 인스펙터 패널 */
+#inspector-panel {
+    width: 600px;
+    background: #2b2b2b;
+    border-left: 1px solid #111;
+    display: flex;
+    flex-direction: column;
+    color: #eee;
+    position: relative;
+    overflow-y: auto;
+}
+
+.inspector-content {
+    padding: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.inspector-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+}
+
+.empty-msg {
+    color: #888;
+    text-align: center;
+    font-size: 12px;
+}
+
+/* 인스펙터 섹션 */
+.ins-section {
+    margin-bottom: 16px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 12px;
+}
+
+.ins-section:last-child {
+    border-bottom: none;
+}
+
+.ins-label {
+    font-size: 11px;
+    color: #999;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.ins-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.ins-row label {
+    color: #aaa;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+
+.ins-row span {
+    color: #eee;
+    padding: 4px 6px;
+    background: #1a1a1a;
+    border-radius: 2px;
+}
+
+.ins-row input[type="text"] {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    color: #eee;
+    padding: 6px 8px;
+    border-radius: 2px;
+    font-size: 12px;
+}
+
+.ins-row input[type="text"]:focus {
+    outline: none;
+    border-color: #3498db;
+    background: #0a0a0a;
+}
+
+/* 이미지 컨테이너 */
+.ins-image-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#ins-preview {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    min-height: 100px;
+}
+
+#ins-preview canvas {
+    border-radius: 2px;
+}
+
+.ins-image-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#ins-char-name {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    padding: 6px 8px;
+    border-radius: 2px;
+    font-size: 12px;
+    color: #ddd;
+    text-align: center;
+}
+
+#ins-btn-change-img {
+    padding: 6px 12px;
+    background: #3a5a3a;
+    border: 1px solid #556655;
+    color: #fff;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+#ins-btn-change-img:hover {
+    background: #4a7a4a;
+}
+
+#ins-image-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    color: #aaa;
+}
+
+#ins-image-details div {
+    padding: 4px 6px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    border-left: 2px solid #3498db;
+    padding-left: 8px;
+}
+
+#ins-page-info,
+#ins-condition-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#ins-page-info div,
+#ins-condition-info div {
+    padding: 4px 6px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    border-left: 2px solid #3498db;
+    padding-left: 8px;
+    font-size: 11px;
+}
+
+/* 커맨드 목록 */
+#ins-contents-list {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 2px;
+    overflow-y: auto;
+    padding: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+}
+
+#ins-contents-list div {
+    padding: 4px 0;
+    color: #ddd;
+    line-height: 1.4;
+}
+
+#ins-contents-list div:last-child {
+    border-bottom: none;
+}
+
+/* 인스펙터 버튼 그룹 */
+.ins-button-group {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #444;
+}
+
+.ins-btn {
+    padding: 6px 4px;
+    background: #3a5a3a;
+    border: 1px solid #556655;
+    color: #fff;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 10px;
+    transition: background 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ins-btn:hover {
+    background: #4a7a4a;
+}
+
+.ins-btn#ins-btn-new {
+    grid-column: auto;
+}
+
+.ins-btn#ins-btn-clear {
+    grid-column: auto;
+}
+
+/* 페이지 탭 */
+.ins-page-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #444;
+    flex-wrap: wrap;
+}
+
+#ins-page-tab-container {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.ins-page-tab {
+    padding: 6px 10px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #aaa;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+}
+
+.ins-page-tab:hover {
+    background: #4a4a4a;
+}
+
+.ins-page-tab.active {
+    background: #3a5a3a;
+    color: #fff;
+    border-color: #556655;
+}
+
+/* 페이지 컨텐츠 */
+#ins-page-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+#ins-page-content .ins-section {
+    flex-shrink: 0;
+}
+
+#ins-page-content .ins-section.flex-fill {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#ins-page-content .ins-section.flex-fill > #ins-contents-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Flex Fill 클래스 */
+.flex-fill {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* 인스펙터 리사이저 */
+.inspector-resizer {
+    width: 4px;
+    height: 100%;
+    background: #444;
+    cursor: col-resize;
+    transition: background 0.2s;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 10;
+}
+
+.inspector-resizer:hover {
+    background: #3498db;
+}
+
+/* 선택 버튼 스타일 */
+.ins-selector-btn {
+    background: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 2px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.ins-selector-btn:hover {
+    background: #4a4a4a;
+    border-color: #777;
+}
+
+.ins-selector-btn:active {
+    background: #2a2a2a;
+}
