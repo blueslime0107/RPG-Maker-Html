@@ -1179,8 +1179,16 @@ class EventManager {
         this.events = null
         this.selectedCommand = null; // 선택된 커맨드
         this.selectedCommandElement = null; // 선택된 커맨드 DOM 요소
+        this.selectedCommandElements = null; // 선택된 커맨드들 (여러 개)
+        this.selectedCommandAnchor = undefined; // Shift+클릭 범위 선택의 기준점
         this.commandDefinitions = EVENT_COMMAND_DEFINITIONS;
+        this.clipboard = null; // 이벤트 복사/붙여넣기 클립보드
+        this.commandClipboard = null; // 커맨드 복사/붙여넣기 클립보드
+        this.draggedEvent = null; // 드래그 중인 이벤트
+        this.dragStartPos = null; // 드래그 시작 위치
+        this.selectedEvent = null; // 현재 선택된 이벤트
         this.initClickEvent()
+        this.initDragEvent();
         this.initInspectorTabs();
         this.initFontSizeControl();
     }
@@ -1200,6 +1208,10 @@ class EventManager {
     render() {
         this.events = this.map.events.filter(x => x != null);
 
+        // 플레이어 렌더링
+        this.drawPlayer();
+
+        // 이벤트 렌더링
         for (const event of this.map.events) {
             if (!event || !event.pages || event.pages.length === 0) continue;
 
@@ -1209,6 +1221,98 @@ class EventManager {
 
             this.drawCharacter(event, x, y);
         }
+    }
+
+    drawPlayer() {
+        const canvas = document.getElementById('map-canvas');
+        const ctx = canvas.getContext('2d');
+        // 플레이어가 현재 맵에 있는지 확인
+        console.log('[drawPlayer] 시작 - mapId:', main. map,main.systemData.startMapId);
+
+        if( main.mapInfo.id !== main.systemData.startMapId) {
+            console.log('[drawPlayer] 플레이어가 현재 맵에 없음. 그리지 않음.');
+            return; // 플레이어가 현재 맵에 없음
+        }
+
+        const x = main.systemData.startX;
+        const y = main.systemData.startY;   
+        console.log('[drawPlayer] 플레이어 위치:', x, y);
+        
+        const TILE_SIZE = 48;
+        const dx = x * TILE_SIZE;
+        const dy = y * TILE_SIZE;
+
+        // 파티 첫 번째 멤버의 캐릭터 정보 가져오기
+        const actorId = main.systemData.partyMembers[0];
+        console.log('[drawPlayer] Actor ID:', actorId);
+        
+        const actor = main.actorsData[actorId];
+        if (!actor) {
+            console.warn('[drawPlayer] Actor not found:', actorId);
+            // 빨간색 테두리만 그리기
+            ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillText('P', dx + 4, dy + 14);
+            return;
+        }
+
+        const characterName = actor.characterName;
+        const characterIndex = actor.characterIndex;
+        console.log('[drawPlayer] Character:', characterName, 'Index:', characterIndex);
+
+        // 캐릭터 이미지 그리기
+        if (characterName) {
+            const img = main.images.get(characterName);
+            console.log('[drawPlayer] Image loaded:', img, 'complete:', img?.complete, 'naturalWidth:', img?.naturalWidth);
+            
+            if (!img || !img.complete || !img.naturalWidth) {
+                console.warn('[drawPlayer] Image not loaded:', characterName);
+                // 이미지 없을 때 빨간 테두리만 표시
+                ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText('P', dx + 4, dy + 14);
+                return;
+            }
+
+
+
+            const isBig = characterName.startsWith('$');
+            const charW = isBig ? img.width / 3 : img.width / 12;
+            const charH = isBig ? img.height / 4 : img.height / 8;
+
+            const col = isBig ? 0 : (characterIndex % 4);
+            const row = isBig ? 0 : Math.floor(characterIndex / 4);
+
+            // 기본 방향: 아래(2), 패턴: 중앙(1)
+            const pattern = 1;
+            const direction = 2;
+            const sx = (col * 3 + pattern) * charW;
+            const sy = (row * 4 + (direction / 2 - 1)) * charH;
+
+                ctx.drawImage(
+                img,
+                sx, sy, charW, charH,
+                dx + (TILE_SIZE - charW) / 2,
+                dy + TILE_SIZE - charH,
+                charW, charH
+            );
+        }
+
+        // 빨간색 테두리
+        ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+        // 플레이어 표시
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('P', dx + 4, dy + 14);
     }
 
     drawCharacter(event, x, y) {
@@ -1276,6 +1380,32 @@ class EventManager {
         const canvas = document.getElementById('map-canvas');
         if (!canvas) return;
 
+        // Enter 키 핸들러 추가
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                // 입력 요소에 포커스되어 있으면 무시
+                const activeElement = document.activeElement;
+                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+                    return;
+                }
+
+                // 커맨드가 선택되어 있으면 무시 (커맨드 단축키 우선)
+                if (this.selectedCommand) {
+                    return;
+                }
+
+                // 맵 캔버스가 없으면 무시
+                if (!canvas) return;
+
+                // 마우스 위치 없으면 중앙에 생성
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const centerX = Math.floor(main.map.width / 2);
+                const centerY = Math.floor(main.map.height / 2);
+                this.createEvent(centerX, centerY);
+            }
+        });
+
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault(); // 브라우저 메뉴 차단
 
@@ -1288,17 +1418,90 @@ class EventManager {
 
             if (clickedEvent) {
                 this.showEventContextMenu(e.pageX, e.pageY, clickedEvent);
+            } else {
+                this.showMapContextMenu(e.pageX, e.pageY, tileX, tileY);
             }
         });
     }
 
-    // 이벤트 우클릭 메뉴 표시
-    showEventContextMenu(x, y, event) {
-        // 기존 메뉴가 있다면 제거
-        let menu = document.getElementById('event-context-menu');
-        if (menu) menu.remove();
+    // 드래그 이벤트 초기화
+    initDragEvent() {
+        const canvas = document.getElementById('map-canvas');
+        if (!canvas) return;
 
-        menu = document.createElement('div');
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // 왼쪽 클릭만
+
+            const rect = canvas.getBoundingClientRect();
+            const tileX = Math.floor((e.clientX - rect.left) / 48);
+            const tileY = Math.floor((e.clientY - rect.top) / 48);
+
+            // 해당 좌표의 이벤트 찾기
+            const clickedEvent = this.events.find(ev => ev.x === tileX && ev.y === tileY);
+
+            if (clickedEvent) {
+                isDragging = true;
+                this.draggedEvent = clickedEvent;
+                this.dragStartPos = { x: clickedEvent.x, y: clickedEvent.y };
+                dragStartX = tileX;
+                dragStartY = tileY;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging || !this.draggedEvent) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const tileX = Math.floor((e.clientX - rect.left) / 48);
+            const tileY = Math.floor((e.clientY - rect.top) / 48);
+
+            // 위치가 변경되었을 때만 업데이트
+            if (tileX !== dragStartX || tileY !== dragStartY) {
+                // 맵 범위 체크
+                if (tileX >= 0 && tileX < this.map.width && tileY >= 0 && tileY < this.map.height) {
+                    this.draggedEvent.x = tileX;
+                    this.draggedEvent.y = tileY;
+                    main.mapManager.renderMap();
+                    dragStartX = tileX;
+                    dragStartY = tileY;
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDragging || !this.draggedEvent) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const tileX = Math.floor((e.clientX - rect.left) / 48);
+            const tileY = Math.floor((e.clientY - rect.top) / 48);
+
+            // 다른 이벤트와 충돌 체크 (자기 자신 제외)
+            const collidingEvent = this.events.find(ev => 
+                ev !== this.draggedEvent && ev.x === tileX && ev.y === tileY
+            );
+
+            if (collidingEvent) {
+                // 충돌 시 원래 위치로 복귀
+                this.draggedEvent.x = this.dragStartPos.x;
+                this.draggedEvent.y = this.dragStartPos.y;
+                main.mapManager.renderMap();
+            }
+
+            isDragging = false;
+            this.draggedEvent = null;
+            this.dragStartPos = null;
+        });
+    }
+
+    // 빈 공간 우클릭 메뉴
+    showMapContextMenu(x, y, tileX, tileY) {
+        this.closeContextMenu();
+
+        const menu = document.createElement('div');
         menu.id = 'event-context-menu';
         Object.assign(menu.style, {
             position: 'fixed',
@@ -1311,16 +1514,87 @@ class EventManager {
             zIndex: '9999',
             fontSize: '13px',
             boxShadow: '2px 2px 10px rgba(0,0,0,0.4)',
-            minWidth: '120px'
+            minWidth: '150px'
         });
 
         const options = [
             {
-                label: '편집...',
+                label: '플레이어',
+                action: () => this.setPlayerStart(tileX, tileY)
+            },
+            {
+                label: '이벤트 생성',
+                action: () => this.createEvent(tileX, tileY)
+            },
+            {
+                label: '붙여넣기 (Ctrl+V)',
+                action: () => this.pasteEvent(tileX, tileY),
+                disabled: !this.clipboard
+            }
+        ];
+
+        options.forEach(opt => {
+            const div = document.createElement('div');
+            div.innerText = opt.label;
+            Object.assign(div.style, {
+                padding: '6px 20px',
+                cursor: opt.disabled ? 'default' : 'pointer',
+                opacity: opt.disabled ? '0.4' : '1'
+            });
+
+            if (!opt.disabled) {
+                div.onmouseover = () => div.style.backgroundColor = '#444';
+                div.onmouseout = () => div.style.backgroundColor = 'transparent';
+                div.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof opt.action === 'function') {
+                        opt.action();
+                    }
+                    menu.remove();
+                };
+            }
+            menu.appendChild(div);
+        });
+
+        document.body.appendChild(menu);
+        this.setupMenuClose(menu);
+    }
+
+    // 이벤트 우클릭 메뉴 표시
+    showEventContextMenu(x, y, event) {
+        this.closeContextMenu();
+
+        const menu = document.createElement('div');
+        menu.id = 'event-context-menu';
+        Object.assign(menu.style, {
+            position: 'fixed',
+            left: `${x}px`,
+            top: `${y}px`,
+            backgroundColor: '#2b2b2b',
+            color: '#eee',
+            border: '1px solid #555',
+            padding: '4px 0',
+            zIndex: '9999',
+            fontSize: '13px',
+            boxShadow: '2px 2px 10px rgba(0,0,0,0.4)',
+            minWidth: '150px'
+        });
+
+        const options = [
+            {
+                label: '편집',
                 action: () => this.loadEventToInspector(event)
             },
-            { label: '복사', action: () => console.log('이벤트 복사:', event.id) },
-            { label: '삭제', action: () => console.log('이벤트 삭제:', event.id), color: '#ff6666' }
+            {
+                label: '복사 (Ctrl+C)',
+                action: () => this.copyEvent(event)
+            },
+            {
+                label: '삭제 (Del)',
+                action: () => this.deleteEvent(event),
+                color: '#ff6666'
+            }
         ];
 
         options.forEach(opt => {
@@ -1346,8 +1620,17 @@ class EventManager {
         });
 
         document.body.appendChild(menu);
+        this.setupMenuClose(menu);
+    }
 
-        // 다른 곳 클릭 시 메뉴 닫기
+    closeContextMenu() {
+        const menu = document.getElementById('event-context-menu');
+        if (menu) menu.remove();
+        const cmdMenu = document.getElementById('command-context-menu');
+        if (cmdMenu) cmdMenu.remove();
+    }
+
+    setupMenuClose(menu) {
         setTimeout(() => {
             const closeMenu = (e) => {
                 if (!menu.contains(e.target)) {
@@ -1358,6 +1641,286 @@ class EventManager {
             document.addEventListener('click', closeMenu);
         }, 0);
     }
+
+    // 커맨드 컨텍스트 메뉴
+    showCommandContextMenu(x, y, cmd, index, page) {
+        this.closeContextMenu();
+
+        const menu = document.createElement('div');
+        menu.id = 'command-context-menu';
+        Object.assign(menu.style, {
+            position: 'fixed',
+            left: `${x}px`,
+            top: `${y}px`,
+            backgroundColor: '#2b2b2b',
+            color: '#eee',
+            border: '1px solid #555',
+            padding: '4px 0',
+            zIndex: '9999',
+            fontSize: '13px',
+            boxShadow: '2px 2px 10px rgba(0,0,0,0.4)',
+            minWidth: '180px'
+        });
+
+        const options = [
+            {
+                label: '편집',
+                action: () => this.editCommand(cmd, index, page)
+            },
+            {
+                label: '추가 (Enter)',
+                action: () => this.openCommandSelector(index, page)
+            },
+            {
+                label: '복사 (Ctrl+C)',
+                action: () => this.copyCommand(cmd, index)
+            },
+            {
+                label: '붙여넣기 (Ctrl+V)',
+                action: () => this.pasteCommand(index, page),
+                disabled: !this.commandClipboard
+            },
+            {
+                label: '삭제 (Del)',
+                action: () => this.deleteCommand(index, page),
+                color: '#ff6666',
+                disabled: cmd.code === 0
+            }
+        ];
+
+        options.forEach(opt => {
+            const div = document.createElement('div');
+            div.innerText = opt.label;
+            Object.assign(div.style, {
+                padding: '6px 20px',
+                cursor: opt.disabled ? 'default' : 'pointer',
+                opacity: opt.disabled ? '0.4' : '1'
+            });
+            if (opt.color) div.style.color = opt.color;
+
+            if (!opt.disabled) {
+                div.onmouseover = () => div.style.backgroundColor = '#444';
+                div.onmouseout = () => div.style.backgroundColor = 'transparent';
+                div.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof opt.action === 'function') {
+                        opt.action();
+                    }
+                    menu.remove();
+                };
+            }
+            menu.appendChild(div);
+        });
+
+        document.body.appendChild(menu);
+        this.setupMenuClose(menu);
+    }
+
+    // 커맨드 선택 창 열기
+    openCommandSelector(index, page) {
+        console.log('[openCommandSelector] 호출 - index:', index);
+        // 기존 showCommandList 메서드 호출
+        if (typeof this.showCommandList === 'function') {
+            this.showCommandList(index, page);
+        } else if (typeof this.addCommand === 'function') {
+            this.addCommand(index, page);
+        } else {
+            console.error('[openCommandSelector] showCommandList/addCommand method not found');
+        }
+    }
+
+    // 커맨드 복사 (선택된 모든 커맨드, indent:0인 0코드 제외)
+    copyCommand(cmd, index) {
+        const page = this.selectedCommand.page;
+        const commands = page.list;
+        
+        // 선택된 인덱스들이 있으면 모두 복사
+        const indicesToCopy = this.selectedCommand.indices || [index];
+        const commandsToCopy = indicesToCopy
+            .map(idx => commands[idx])
+            .filter(cmd => !(cmd.code === 0 && cmd.indent === 0)); // indent:0인 0코드 제외
+
+        this.commandClipboard = JSON.parse(JSON.stringify(commandsToCopy));
+        console.log('커맨드 복사:', commandsToCopy.length, '개');
+    }
+
+    // 커맨드 붙여넣기 (선택된 커맨드 위에, 붙여넣은 위치로 선택 이동)
+    pasteCommand(index, page) {
+        if (!this.commandClipboard) return;
+
+        const commandsToPaste = JSON.parse(JSON.stringify(this.commandClipboard));
+        const pasteCount = commandsToPaste.length;
+        
+        // 선택된 위치 위에 삽입
+        page.list.splice(index, 0, ...commandsToPaste);
+        
+        // 리스트 다시 렌더링
+        this.displayCommandList(page);
+        
+        // 붙여넣은 첫 번째 커맨드로 선택 이동
+        setTimeout(() => {
+            const contentsList = document.getElementById('ins-contents-list');
+            const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+            const newCmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === index);
+            
+            if (newCmdDiv) {
+                const newCmd = page.list[index];
+                this.selectCommand(newCmdDiv, newCmd, index, page);
+                this.selectedCommandAnchor = index;
+            }
+        }, 0);
+        
+        console.log('커맨드 붙여넣기:', pasteCount, '개');
+    }
+
+    // 커맨드 삭제 (선택된 모든 커맨드, 0 코드 제외)
+    deleteCommand(index, page) {
+        const commands = page.list;
+        
+        // 선택된 인덱스들이 있으면 모두 삭제
+        const indicesToDelete = this.selectedCommand.indices || [index];
+        
+        // 0 코드가 포함되어 있는지 확인
+        const hasEndCode = indicesToDelete.some(idx => commands[idx].code === 0);
+        if (hasEndCode) {
+            alert('종료 커맨드는 삭제할 수 없습니다.');
+            return;
+        }
+
+        // 역순으로 삭제
+        indicesToDelete.sort((a, b) => b - a);
+        indicesToDelete.forEach(i => {
+            page.list.splice(i, 1);
+        });
+
+        this.selectedCommand = null;
+        this.selectedCommandElement = null;
+        this.selectedCommandElements = null;
+        this.displayCommandList(page);
+        console.log('커맨드 삭제:', indicesToDelete.length, '개');
+    }
+
+    // 플레이어 시작 위치 설정
+    setPlayerStart(x, y) {
+        main.systemData.startMapId = main.mapInfo.id;
+        main.systemData.startX = x;
+        main.systemData.startY = y;
+        main.mapManager.renderMap();
+        console.log(`플레이어 시작 위치 설정됨: 맵 ${main.mapInfo.id}, (${x}, ${y})`);
+    }
+
+    // 이벤트 생성
+    createEvent(x, y) {
+        const newId = this.getNextEventId();
+        const newEvent = {
+            id: newId,
+            name: "EVENT",
+            note: "",
+            pages: [{
+                conditions: {
+                    actorId: 1,
+                    actorValid: false,
+                    itemId: 1,
+                    itemValid: false,
+                    selfSwitchCh: "A",
+                    selfSwitchValid: false,
+                    switch1Id: 1,
+                    switch1Valid: false,
+                    switch2Id: 1,
+                    switch2Valid: false,
+                    variableId: 1,
+                    variableValid: false,
+                    variableValue: 0
+                },
+                directionFix: false,
+                image: {
+                    characterIndex: 0,
+                    characterName: "",
+                    direction: 2,
+                    pattern: 0,
+                    tileId: 0
+                },
+                list: [{ code: 0, indent: 0, parameters: [] }],
+                moveFrequency: 3,
+                moveRoute: {
+                    list: [{ code: 0, parameters: [] }],
+                    repeat: true,
+                    skippable: false,
+                    wait: false
+                },
+                moveSpeed: 3,
+                moveType: 0,
+                priorityType: 1,
+                stepAnime: false,
+                through: false,
+                trigger: 0,
+                walkAnime: true
+            }],
+            x: x,
+            y: y
+        };
+
+        this.map.events[newId] = newEvent;
+        this.events = this.map.events.filter(x => x != null);
+        main.mapManager.renderMap();
+        this.loadEventToInspector(newEvent);
+        console.log(`이벤트 생성: ID ${newId}, (${x}, ${y})`);
+    }
+
+    // 다음 이벤트 ID 찾기 (null 슬롯 재사용)
+    getNextEventId() {
+        // 0번 인덱스는 항상 null이므로 1부터 시작
+        for (let i = 1; i < this.map.events.length; i++) {
+            if (this.map.events[i] === null) {
+                return i;
+            }
+        }
+        // null이 없으면 배열 끝에 추가
+        return this.map.events.length;
+    }
+
+    // 이벤트 복사
+    copyEvent(event) {
+        this.clipboard = JSON.parse(JSON.stringify(event));
+        console.log('이벤트 복사:', event.id);
+    }
+
+    // 이벤트 붙여넣기
+    pasteEvent(x, y) {
+        if (!this.clipboard) return;
+
+        const newId = this.getNextEventId();
+        const newEvent = JSON.parse(JSON.stringify(this.clipboard));
+        newEvent.id = newId;
+        newEvent.x = x;
+        newEvent.y = y;
+
+        this.map.events[newId] = newEvent;
+        this.events = this.map.events.filter(x => x != null);
+        main.mapManager.renderMap();
+        console.log(`이벤트 붙여넣기: ID ${newId}, (${x}, ${y})`);
+    }
+
+    // 이벤트 삭제
+    deleteEvent(event) {
+        if (!confirm(`이벤트 ${event.id}를 삭제하시겠습니까?`)) return;
+
+        this.map.events[event.id] = null;
+        this.events = this.map.events.filter(x => x != null);
+
+        // 인스펙터가 삭제된 이벤트를 표시 중이면 초기화
+        if (this.selectedEvent && this.selectedEvent.id === event.id) {
+            this.selectedEvent = null;
+            document.getElementById('inspector-main').style.display = 'none';
+            document.getElementById('inspector-empty').style.display = 'block';
+        }
+
+        main.mapManager.renderMap();
+        console.log('이벤트 삭제:', event.id);
+    }
+
+    // 이벤트 우클릭 메뉴 표시 (기존 코드 제거됨)
 
     // 2. 인스펙터에 데이터 로드
     loadEventToInspector(event) {
@@ -1807,12 +2370,34 @@ class EventManager {
 
             // 클릭 이벤트 (선택)
             cmdDiv.addEventListener('click', (e) => {
-                this.selectCommand(cmdDiv, cmd, index, page);
+                if (e.shiftKey && this.selectedCommandAnchor !== undefined) {
+                    // Shift 클릭: 범위 선택 (anchor 기준)
+                    e.preventDefault();
+                    this.selectCommandRange(this.selectedCommandAnchor, index, page);
+                } else {
+                    // 일반 클릭: 단일/연결 선택 및 anchor 설정
+                    this.selectCommand(cmdDiv, cmd, index, page, e);
+                    this.selectedCommandAnchor = index;
+                }
             });
+
+            // 텍스트 선택 방지
+            cmdDiv.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+            cmdDiv.style.userSelect = 'none';
 
             // 더블클릭 이벤트 (편집)
             cmdDiv.addEventListener('dblclick', (e) => {
                 this.editCommand(cmd, index, page);
+            });
+
+            // 우클릭 이벤트 (컨텍스트 메뉴)
+            cmdDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.selectCommand(cmdDiv, cmd, index, page);
+                this.showCommandContextMenu(e.pageX, e.pageY, cmd, index, page);
             });
 
             const commandText = this.getCommandText(cmd.code, cmd.parameters, new Command(cmd, index, commands));
@@ -2390,46 +2975,130 @@ class EventManager {
         });
     }
 
-    // 커맨드 선택
-    selectCommand(element, cmd, index, page) {
+    // 커맨드 선택 (연결된 코드 포함)
+    selectCommand(element, cmd, index, page, event) {
         // 이전 선택 해제
-        if (this.selectedCommandElement) {
-            this.selectedCommandElement.style.backgroundColor = 'transparent';
+        if (this.selectedCommandElements) {
+            this.selectedCommandElements.forEach(el => {
+                el.style.backgroundColor = 'transparent';
+            });
         }
 
-        // 새로운 선택
+        const commands = page.list;
+        const indicesToSelect = [index];
+
+        // 연결된 코드 찾기
+        if (cmd.code === 101) {
+            // 텍스트 표시 - 401 수집
+            for (let i = index + 1; i < commands.length; i++) {
+                if (commands[i].code === 401) {
+                    indicesToSelect.push(i);
+                } else break;
+            }
+        } else if (cmd.code === 102) {
+            // 선택지 표시 - 402, 403 수집
+            for (let i = index + 1; i < commands.length; i++) {
+                if (commands[i].code === 402 || commands[i].code === 403) {
+                    indicesToSelect.push(i);
+                } else break;
+            }
+        } else if (cmd.code === 205) {
+            // 이동 루트 - 505 수집
+            for (let i = index + 1; i < commands.length; i++) {
+                if (commands[i].code === 505) {
+                    indicesToSelect.push(i);
+                } else break;
+            }
+        }
+
+        // 선택된 인덱스들의 DOM 요소 찾기 및 하이라이트
+        const contentsList = document.getElementById('ins-contents-list');
+        const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+        
+        this.selectedCommandElements = [];
+        indicesToSelect.forEach(idx => {
+            const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === idx);
+            if (cmdDiv) {
+                cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+                this.selectedCommandElements.push(cmdDiv);
+            }
+        });
+
         this.selectedCommandElement = element;
-        this.selectedCommand = { cmd, index, page };
-        element.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+        this.selectedCommand = { cmd, index, page, indices: indicesToSelect };
 
-        // 스페이스바 리스너 등록 (한번만)
-        if (!this.spaceKeyListener) {
-            this.spaceKeyListener = (e) => {
-                if (e.code === 'Space' && this.selectedCommand) {
-                    // 입력 요소에 포커스되어 있으면 무시
-                    const activeElement = document.activeElement;
-                    if (activeElement && (
-                        activeElement.tagName === 'INPUT' ||
-                        activeElement.tagName === 'TEXTAREA' ||
-                        activeElement.tagName === 'SELECT' ||
-                        activeElement.isContentEditable
-                    )) {
-                        return;
-                    }
+        // 단축키 리스너 등록 (한번만)
+        if (!this.commandKeyListener) {
+            this.commandKeyListener = (e) => {
+                // 입력 요소에 포커스되어 있으면 무시
+                const activeElement = document.activeElement;
+                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+                    return;
+                }
 
-                    // 모달이 열려있으면 무시
-                    if (document.getElementById('message-edit-overlay') ||
-                        document.getElementById('command-list-overlay') ||
-                        document.getElementById('face-selector-overlay')) {
-                        return;
-                    }
+                if (!this.selectedCommand) return;
 
+                const { cmd, index, page } = this.selectedCommand;
+
+                // Enter: 커맨드 선택 창 열기
+                if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
-                    this.editCommand(this.selectedCommand.cmd, this.selectedCommand.index, this.selectedCommand.page);
+                    this.openCommandSelector(index, page);
+                }
+                // Ctrl+C: 복사
+                else if (e.key === 'c' && e.ctrlKey) {
+                    e.preventDefault();
+                    this.copyCommand(cmd, index);
+                }
+                // Ctrl+V: 붙여넣기
+                else if (e.key === 'v' && e.ctrlKey) {
+                    e.preventDefault();
+                    this.pasteCommand(index, page);
+                }
+                // Delete 또는 Backspace: 삭제
+                else if ((e.key === 'Delete' || e.key === 'Backspace') && cmd.code !== 0) {
+                    e.preventDefault();
+                    this.deleteCommand(index, page);
                 }
             };
-            document.addEventListener('keydown', this.spaceKeyListener);
+            document.addEventListener('keydown', this.commandKeyListener);
         }
+    }
+
+    // 커맨드 범위 선택 (Shift+클릭)
+    selectCommandRange(startIndex, endIndex, page) {
+        // 이전 선택 해제
+        if (this.selectedCommandElements) {
+            this.selectedCommandElements.forEach(el => {
+                el.style.backgroundColor = 'transparent';
+            });
+        }
+
+        const minIndex = Math.min(startIndex, endIndex);
+        const maxIndex = Math.max(startIndex, endIndex);
+        const indicesToSelect = [];
+
+        for (let i = minIndex; i <= maxIndex; i++) {
+            indicesToSelect.push(i);
+        }
+
+        // DOM 요소 찾기 및 하이라이트
+        const contentsList = document.getElementById('ins-contents-list');
+        const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+        
+        this.selectedCommandElements = [];
+        indicesToSelect.forEach(idx => {
+            const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === idx);
+            if (cmdDiv) {
+                cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+                this.selectedCommandElements.push(cmdDiv);
+            }
+        });
+
+        // 마지막 커맨드 정보 저장
+        const cmd = page.list[endIndex];
+        this.selectedCommandElement = this.selectedCommandElements[this.selectedCommandElements.length - 1];
+        this.selectedCommand = { cmd, index: endIndex, page, indices: indicesToSelect };
     }
 
     // 커맨드 편집

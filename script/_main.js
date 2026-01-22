@@ -4,6 +4,7 @@ class EditorMain {
         this.tilesetData = null;
 
         this.map = null;
+        this.mapInfo = null;
         this.images = new Map();
 
         this.mapInfos = [];
@@ -571,6 +572,7 @@ class EditorMain {
 
     loadMap(id) {
         this.map = this.mapDatas[id]
+        this.mapInfo = this.mapInfos[id]
         this.mapManager.loadMap(this.map)
         this.eventManager.loadEvent(this.map)
 
@@ -1127,14 +1129,27 @@ class EditorUI {
             // 맵 범위 체크
             if (x < 0 || x >= main.map.width || y < 0 || y >= main.map.height) return;
 
+            // 이벤트가 있는 위치는 페인팅하지 않음 (드래그 우선)
+            const hasEvent = main.eventManager.events.some(ev => ev.x === x && ev.y === y);
+            if (hasEvent) return;
+
             // MapManager에게 타일 데이터 변경 요청 (현재는 간단히 레이어 0번에 그리는 것으로 가정)
             main.mapManager.setTile(x, y, 1, this.selectedTile);
         };
 
         canvas.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return; // 왼쪽 클릭만
-            isPainting = true;
-            paint(e);
+            
+            // 이벤트가 있는 위치는 페인팅 시작하지 않음
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / 48);
+            const y = Math.floor((e.clientY - rect.top) / 48);
+            const hasEvent = main.eventManager.events.some(ev => ev.x === x && ev.y === y);
+            
+            if (!hasEvent && this.selectedTile) {
+                isPainting = true;
+                paint(e);
+            }
         });
 
         window.addEventListener('mousemove', (e) => {
