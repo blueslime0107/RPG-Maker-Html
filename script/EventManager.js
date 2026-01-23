@@ -51,16 +51,12 @@ class EventManager {
         const canvas = document.getElementById('map-canvas');
         const ctx = canvas.getContext('2d');
         // 플레이어가 현재 맵에 있는지 확인
-        console.log('[drawPlayer] 시작 - mapId:', main. map,main.systemData.startMapId);
-
         if( main.mapInfo.id !== main.systemData.startMapId) {
-            console.log('[drawPlayer] 플레이어가 현재 맵에 없음. 그리지 않음.');
             return; // 플레이어가 현재 맵에 없음
         }
 
         const x = main.systemData.startX;
         const y = main.systemData.startY;   
-        console.log('[drawPlayer] 플레이어 위치:', x, y);
         
         const TILE_SIZE = 48;
         const dx = x * TILE_SIZE;
@@ -68,11 +64,9 @@ class EventManager {
 
         // 파티 첫 번째 멤버의 캐릭터 정보 가져오기
         const actorId = main.systemData.partyMembers[0];
-        console.log('[drawPlayer] Actor ID:', actorId);
         
         const actor = main.actorsData[actorId];
         if (!actor) {
-            console.warn('[drawPlayer] Actor not found:', actorId);
             // 빨간색 테두리만 그리기
             ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
             ctx.lineWidth = 4;
@@ -85,15 +79,12 @@ class EventManager {
 
         const characterName = actor.characterName;
         const characterIndex = actor.characterIndex;
-        console.log('[drawPlayer] Character:', characterName, 'Index:', characterIndex);
 
         // 캐릭터 이미지 그리기
         if (characterName) {
             const img = main.images.get(characterName);
-            console.log('[drawPlayer] Image loaded:', img, 'complete:', img?.complete, 'naturalWidth:', img?.naturalWidth);
             
             if (!img || !img.complete || !img.naturalWidth) {
-                console.warn('[drawPlayer] Image not loaded:', characterName);
                 // 이미지 없을 때 빨간 테두리만 표시
                 ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
                 ctx.lineWidth = 4;
@@ -264,6 +255,20 @@ class EventManager {
             const tileX = Math.floor((e.clientX - rect.left) / 48);
             const tileY = Math.floor((e.clientY - rect.top) / 48);
 
+            // Ctrl 키가 눌려있고 타일셋이 선택되어 있으면 타일 그리기
+            if (e.ctrlKey && main.editorUI && main.editorUI.selectedTile) {
+                const layerMode = main.editorUI.selectedLayer; // 'auto', '0', '1', '2', '3'
+                const tile = main.editorUI.selectedTile;
+                
+                // Shift+Ctrl: 타일 지우기
+                if (e.shiftKey) {
+                    main.mapManager.eraseTile(tileX, tileY, layerMode, tile);
+                } else {
+                    main.mapManager.setTile(tileX, tileY, layerMode, tile);
+                }
+                return;
+            }
+
             // 해당 좌표의 이벤트 찾기
             const clickedEvent = this.events.find(ev => ev.x === tileX && ev.y === tileY);
 
@@ -277,6 +282,27 @@ class EventManager {
         });
 
         canvas.addEventListener('mousemove', (e) => {
+            // Ctrl 드래그로 타일 그리기
+            if (e.ctrlKey && (e.buttons & 1) && main.editorUI && main.editorUI.selectedTile) {
+                const rect = canvas.getBoundingClientRect();
+                const tileX = Math.floor((e.clientX - rect.left) / 48);
+                const tileY = Math.floor((e.clientY - rect.top) / 48);
+                const layerMode = main.editorUI.selectedLayer; // 'auto', '0', '1', '2', '3'
+                
+                // 맵 범위 체크
+                if (tileX >= 0 && tileX < this.map.width && tileY >= 0 && tileY < this.map.height) {
+                    const tile = main.editorUI.selectedTile;
+                    
+                    // Shift+Ctrl: 타일 지우기
+                    if (e.shiftKey) {
+                        main.mapManager.eraseTile(tileX, tileY, layerMode, tile);
+                    } else {
+                        main.mapManager.setTile(tileX, tileY, layerMode, tile);
+                    }
+                }
+                return;
+            }
+
             if (!isDragging || !this.draggedEvent) return;
 
             const rect = canvas.getBoundingClientRect();

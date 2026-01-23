@@ -125,6 +125,9 @@ class EventEditor {
 
         // 정의 시스템에서 편집기 찾기
         const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
+        if(definition.parentCode){ //  자식 코드인 경우 편집 안 함
+            return;
+        }
         console.log(`편집 시작 ID: ${cmd.code}(${definition.name})`)
 
         // editorFields가 정의되어 있으면 범용 편집기 사용
@@ -835,7 +838,7 @@ class EventEditor {
     }
 
     /**
-     * 커맨드 붙여넣기 (선택된 커맨드 위에 붙여넣기, 선택 유지)
+     * 커맨드 붙여넣기 (선택된 커맨드 위에 붙여넣기, 원래 선택 항목 유지)
      */
     pasteCommand(index, page) {
         if (!em.commandClipboard) return;
@@ -843,24 +846,33 @@ class EventEditor {
         const commandsToPaste = JSON.parse(JSON.stringify(em.commandClipboard));
         const pasteCount = commandsToPaste.length;
         
+        // 현재 선택된 인덱스들 저장 (붙여넣기 후 아래로 밀려날 것)
+        const originalIndices = em.selectedCommand?.indices || [index];
+        const originalCurrentIndex = em.selectedCommand?.index || index;
+        
         // 선택된 위치 위에 삽입
         page.list.splice(index, 0, ...commandsToPaste);
         
-        // 리스트 다시 렌더링
-        this.displayCommandList(page);
-        
-        // 붙여넣은 첫 번째 커맨드로 선택 이동 (선택 유지)
-        setTimeout(() => {
-            const contentsList = document.getElementById('ins-contents-list');
-            const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
-            const newCmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === index);
-            
-            if (newCmdDiv) {
-                const newCmd = page.list[index];
-                this.selectCommand(newCmdDiv, newCmd, index, page);
-                em.selectedCommandAnchor = index;
+        // 원래 선택된 인덱스들을 pasteCount만큼 증가시킴
+        const newIndices = originalIndices.map(idx => {
+            // 붙여넣기 위치보다 같거나 뒤에 있던 항목들은 아래로 밀림
+            if (idx >= index) {
+                return idx + pasteCount;
             }
-        }, 0);
+            return idx;
+        });
+        
+        const newCurrentIndex = originalCurrentIndex >= index 
+            ? originalCurrentIndex + pasteCount 
+            : originalCurrentIndex;
+        
+        // 선택 상태를 먼저 업데이트
+        const newCurrentCmd = page.list[newCurrentIndex];
+        em.selectedCommand = { cmd: newCurrentCmd, index: newCurrentIndex, page, indices: newIndices };
+        em.selectedCommandAnchor = newCurrentIndex;
+        
+        // 리스트 다시 렌더링 (이제 previousSelection이 올바른 인덱스로 설정됨)
+        this.displayCommandList(page);
         
         console.log('커맨드 붙여넣기:', pasteCount, '개');
     }
@@ -883,18 +895,26 @@ class EventEditor {
             
             const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
             
-            // 부모 코드면 childCodes와 그 사이의 모든 코드 추가
-            if (definition && definition.childCodes && definition.childCodes.length > 0) {
-                const childCodes = definition.childCodes;
-                
-                for (let i = idx + 1; i < commands.length; i++) {
-                    const currentCode = commands[i].code;
-                    
-                    expandedIndices.add(i);
-                    
-                    // endCode를 만나면 종료
-                    if (definition.endCode && currentCode === definition.endCode) {
-                        break;
+            // 부모 코드면 자식 코드들도 삭제 대상에 추가
+            if (definition) {
+                // listCode: 연속된 동일 코드만
+                if (definition.listCode) {
+                    for (let i = idx + 1; i < commands.length; i++) {
+                        if (commands[i].code === definition.listCode) {
+                            expandedIndices.add(i);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                // childCodes: 마지막 childCode까지
+                else if (definition.childCodes && definition.childCodes.length > 0) {
+                    const endCode = definition.childCodes[definition.childCodes.length - 1];
+                    for (let i = idx + 1; i < commands.length; i++) {
+                        expandedIndices.add(i);
+                        if (commands[i].code === endCode) {
+                            break;
+                        }
                     }
                 }
             }
@@ -902,23 +922,55 @@ class EventEditor {
         
         indicesToDelete = Array.from(expandedIndices);
         
-        // 0 코드가 포함되어 있는지 확인
-        const hasEndCode = indicesToDelete.some(idx => commands[idx].code === 0);
-        if (hasEndCode) {
-            alert('종료 커맨드는 삭제할 수 없습니다.');
-            return;
-        }
-
         // 역순으로 삭제
         indicesToDelete.sort((a, b) => b - a);
         indicesToDelete.forEach(i => {
             page.list.splice(i, 1);
         });
 
-        em.selectedCommand = null;
-        em.selectedCommandElement = null;
-        em.selectedCommandElements = null;
+        // 삭제 후 마지막 코드가 0코드가 아니면 0코드 추가
+        if (page.list.length > 0) {
+            const lastCmd = page.list[page.list.length - 1];
+            if (lastCmd && lastCmd.code !== 0) {
+                // 마지막 코드의 indent를 기반으로 0코드 생성
+                const lastIndent = lastCmd.indent || 0;
+                page.list.push({
+                    code: 0,
+                    indent: lastIndent,
+                    parameters: []
+                });
+            }
+        }
+
+        // 리스트 다시 렌더링
         this.displayCommandList(page);
+        
+        // 삭제 후 다음 코드 선택
+        setTimeout(() => {
+            // 다음 선택 가능한 인덱스 찾기 (자식 코드가 아닌 첫 번째)
+            const minDeleteIndex = Math.min(...Array.from(expandedIndices));
+            let nextIndex = minDeleteIndex;
+            while (nextIndex < page.list.length) {
+                const cmd = page.list[nextIndex];
+                if (!cmd) break;
+                
+                const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
+                // 자식 코드가 아니면 선택
+                if (!definition || definition.parentCode === undefined) {
+                    const contentsList = document.getElementById('ins-contents-list');
+                    const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+                    const nextCmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === nextIndex);
+                    
+                    if (nextCmdDiv) {
+                        this.selectCommand(nextCmdDiv, cmd, nextIndex, page);
+                        em.selectedCommandAnchor = nextIndex;
+                    }
+                    break;
+                }
+                nextIndex++;
+            }
+        }, 0);
+        
         console.log('커맨드 삭제:', indicesToDelete.length, '개');
     }
 
@@ -938,6 +990,88 @@ class EventEditor {
             return;
         }
 
+        // Shift+클릭: 범위 선택
+        if (event && event.shiftKey && em.selectedCommandAnchor !== undefined) {
+            this.selectCommandRange(em.selectedCommandAnchor, index, page);
+            return;
+        }
+
+        // Ctrl+클릭: 다중 선택 토글
+        if (event && (event.ctrlKey || event.metaKey)) {
+            const currentIndices = new Set(em.selectedCommand?.indices || []);
+            
+            // 자식 코드 범위 계산
+            const toggleIndices = [index];
+            if (definition) {
+                // listCode: 바로 다음에 연속된 동일 코드만 선택
+                if (definition.listCode) {
+                    for (let i = index + 1; i < commands.length; i++) {
+                        if (commands[i].code === definition.listCode) {
+                            toggleIndices.push(i);
+                        } else {
+                            break; // 다른 코드 나오면 중단
+                        }
+                    }
+                }
+                // childCodes: 마지막 childCode까지 모든 코드 선택
+                else if (definition.childCodes && definition.childCodes.length > 0) {
+                    const endCode = definition.childCodes[definition.childCodes.length - 1];
+                    for (let i = index + 1; i < commands.length; i++) {
+                        toggleIndices.push(i);
+                        if (commands[i].code === endCode) {
+                            break; // endCode(마지막 childCode) 만나면 중단
+                        }
+                    }
+                }
+            }
+
+            // 토글: 이미 선택되어 있으면 제거, 없으면 추가
+            const isSelected = currentIndices.has(index);
+            if (isSelected) {
+                toggleIndices.forEach(idx => currentIndices.delete(idx));
+            } else {
+                toggleIndices.forEach(idx => currentIndices.add(idx));
+            }
+
+            // 선택이 비어있으면 초기화
+            if (currentIndices.size === 0) {
+                em.selectedCommand = null;
+                em.selectedCommandElement = null;
+                em.selectedCommandElements = null;
+                em.selectedCommandAnchor = undefined;
+                return;
+            }
+
+            // 다중 선택 적용
+            const indicesToSelect = Array.from(currentIndices).sort((a, b) => a - b);
+            
+            // 이전 선택 해제
+            if (em.selectedCommandElements) {
+                em.selectedCommandElements.forEach(el => {
+                    el.style.backgroundColor = 'transparent';
+                });
+            }
+
+            // DOM 요소 찾기 및 하이라이트
+            const contentsList = document.getElementById('ins-contents-list');
+            const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+            
+            em.selectedCommandElements = [];
+            indicesToSelect.forEach(idx => {
+                const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === idx);
+                if (cmdDiv) {
+                    cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+                    em.selectedCommandElements.push(cmdDiv);
+                }
+            });
+
+            em.selectedCommandElement = element;
+            em.selectedCommand = { cmd, index, page, indices: indicesToSelect };
+            // Ctrl+클릭 시에는 앵커 변경하지 않음
+            return;
+        }
+
+        // 일반 클릭: 단일 선택 (또는 부모 코드면 자식까지)
         // 이전 선택 해제
         if (em.selectedCommandElements) {
             em.selectedCommandElements.forEach(el => {
@@ -947,16 +1081,26 @@ class EventEditor {
 
         const indicesToSelect = [index];
 
-        // childCodes가 있으면 endCode까지 모든 코드 선택
-        if (definition && definition.childCodes && definition.childCodes.length > 0) {
-            for (let i = index + 1; i < commands.length; i++) {
-                const currentCode = commands[i].code;
-                
-                indicesToSelect.push(i);
-                
-                // endCode를 만나면 종료
-                if (definition.endCode && currentCode === definition.endCode) {
-                    break;
+        // 자식 코드 선택
+        if (definition) {
+            // listCode: 바로 다음에 연속된 동일 코드만 선택
+            if (definition.listCode) {
+                for (let i = index + 1; i < commands.length; i++) {
+                    if (commands[i].code === definition.listCode) {
+                        indicesToSelect.push(i);
+                    } else {
+                        break; // 다른 코드 나오면 중단
+                    }
+                }
+            }
+            // childCodes: 마지막 childCode까지 모든 코드 선택
+            else if (definition.childCodes && definition.childCodes.length > 0) {
+                const endCode = definition.childCodes[definition.childCodes.length - 1];
+                for (let i = index + 1; i < commands.length; i++) {
+                    indicesToSelect.push(i);
+                    if (commands[i].code === endCode) {
+                        break; // endCode(마지막 childCode) 만나면 중단
+                    }
                 }
             }
         }
@@ -976,6 +1120,7 @@ class EventEditor {
 
         em.selectedCommandElement = element;
         em.selectedCommand = { cmd, index, page, indices: indicesToSelect };
+        em.selectedCommandAnchor = index; // 앵커 설정
 
         // 단축키 리스너 등록 (한번만)
         if (!em.commandKeyListener) {
@@ -990,10 +1135,26 @@ class EventEditor {
 
                 const { cmd, index, page } = em.selectedCommand;
 
-                // Enter: 커맨드 선택 창 열기
-                if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                // Enter 또는 Spacebar: 커맨드 선택 창 열기 / 편집
+                if ((e.key === 'Enter' || e.key === ' ') && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
-                    this.showCommandList(index, page);
+                    if (e.key === ' ') {
+                        // Spacebar: 편집
+                        this.editCommand(cmd, index, page);
+                    } else {
+                        // Enter: 커맨드 선택 창
+                        this.showCommandList(index, page);
+                    }
+                }
+                // 화살표 위: 이전 커맨드 선택
+                else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.selectPreviousCommand(index, page);
+                }
+                // 화살표 아래: 다음 커맨드 선택
+                else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.selectNextCommand(index, page);
                 }
                 // Ctrl+C: 복사
                 else if (e.key === 'c' && e.ctrlKey) {
@@ -1016,9 +1177,69 @@ class EventEditor {
     }
 
     /**
+     * 이전 커맨드 선택 (화살표 위)
+     */
+    selectPreviousCommand(currentIndex, page) {
+        const commands = page.list;
+        
+        // 현재 인덱스 이전의 선택 가능한 커맨드 찾기 (자식 코드가 아닌 것)
+        for (let i = currentIndex - 1; i >= 0; i--) {
+            const cmd = commands[i];
+            if (!cmd) continue;
+            
+            const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
+            // 자식 코드가 아니면 선택
+            if (!definition || definition.parentCode === undefined) {
+                const contentsList = document.getElementById('ins-contents-list');
+                const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+                const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === i);
+                
+                if (cmdDiv) {
+                    this.selectCommand(cmdDiv, cmd, i, page);
+                    em.selectedCommandAnchor = i;
+                    
+                    // 스크롤하여 보이게 만들기
+                    cmdDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                break;
+            }
+        }
+    }
+
+    /**
+     * 다음 커맨드 선택 (화살표 아래)
+     */
+    selectNextCommand(currentIndex, page) {
+        const commands = page.list;
+        
+        // 현재 인덱스 다음의 선택 가능한 커맨드 찾기 (자식 코드가 아닌 것)
+        for (let i = currentIndex + 1; i < commands.length; i++) {
+            const cmd = commands[i];
+            if (!cmd) continue;
+            
+            const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
+            // 자식 코드가 아니면 선택
+            if (!definition || definition.parentCode === undefined) {
+                const contentsList = document.getElementById('ins-contents-list');
+                const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+                const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === i);
+                
+                if (cmdDiv) {
+                    this.selectCommand(cmdDiv, cmd, i, page);
+                    em.selectedCommandAnchor = i;
+                    
+                    // 스크롤하여 보이게 만들기
+                    cmdDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                break;
+            }
+        }
+    }
+
+    /**
      * 커맨드 범위 선택 (Shift+클릭)
      */
-    selectCommandRange(startIndex, endIndex, page) {
+    selectCommandRange(anchorIndex, currentIndex, page) {
         // 이전 선택 해제
         if (em.selectedCommandElements) {
             em.selectedCommandElements.forEach(el => {
@@ -1027,13 +1248,50 @@ class EventEditor {
         }
 
         const commands = page.list;
-        const minIndex = Math.min(startIndex, endIndex);
-        const maxIndex = Math.max(startIndex, endIndex);
+        const minIndex = Math.min(anchorIndex, currentIndex);
+        const maxIndex = Math.max(anchorIndex, currentIndex);
         const indicesToSelect = [];
+        const processed = new Set();
 
-        // 범위 내 모든 인덱스 추가 (자식 코드 포함)
+        // 범위 내 모든 인덱스 추가 (부모 코드면 자식들도 포함)
         for (let i = minIndex; i <= maxIndex; i++) {
+            const cmd = commands[i];
+            if (!cmd || processed.has(i)) continue;
+            
+            // 화면에 표시되는 항목만 선택 (자식 코드 제외)
+            const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
+            if (definition && definition.parentCode !== undefined) {
+                continue; // 자식 코드는 스킵
+            }
+            
             indicesToSelect.push(i);
+            processed.add(i);
+            
+            // 부모 코드면 자식들도 선택에 추가
+            if (definition) {
+                // listCode: 연속된 동일 코드
+                if (definition.listCode) {
+                    for (let j = i + 1; j < commands.length; j++) {
+                        if (commands[j].code === definition.listCode) {
+                            indicesToSelect.push(j);
+                            processed.add(j);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                // childCodes: 마지막 childCode까지
+                else if (definition.childCodes && definition.childCodes.length > 0) {
+                    const endCode = definition.childCodes[definition.childCodes.length - 1];
+                    for (let j = i + 1; j < commands.length; j++) {
+                        indicesToSelect.push(j);
+                        processed.add(j);
+                        if (commands[j].code === endCode) {
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         // DOM 요소 찾기 및 하이라이트
@@ -1049,10 +1307,11 @@ class EventEditor {
             }
         });
 
-        // 마지막 커맨드 정보 저장
-        const cmd = page.list[endIndex];
+        // 현재 위치의 커맨드 정보 저장
+        const cmd = page.list[currentIndex];
         em.selectedCommandElement = em.selectedCommandElements[em.selectedCommandElements.length - 1];
-        em.selectedCommand = { cmd, index: endIndex, page, indices: indicesToSelect };
+        em.selectedCommand = { cmd, index: currentIndex, page, indices: indicesToSelect };
+        // 앵커는 유지 (변경하지 않음)
     }
 
     /**
@@ -1076,21 +1335,22 @@ class EventEditor {
                 parameters: []
             };
 
-        // childCodes가 있으면 자식 코드들 생성
+        // 자식 코드들 생성
         const commandsToInsert = [newCmd];
 
-        if (definition && definition.childCodes && definition.childCodes.length > 0) {
-            // endCode가 있으면 endCode 추가
-            if (definition.endCode) {
-                const endDefinition = EVENT_COMMAND_DEFINITIONS[definition.endCode];
+        if (definition) {
+            // childCodes가 있으면 마지막 childCode(endCode) 추가
+            if (definition.childCodes && definition.childCodes.length > 0) {
+                const endCode = definition.childCodes[definition.childCodes.length - 1];
+                const endDefinition = EVENT_COMMAND_DEFINITIONS[endCode];
                 const endCmd = endDefinition && endDefinition.defaultParm
                     ? {
-                        code: definition.endCode,
+                        code: endCode,
                         indent: currentIndent,
                         parameters: JSON.parse(JSON.stringify(endDefinition.defaultParm))
                     }
                     : {
-                        code: definition.endCode,
+                        code: endCode,
                         indent: currentIndent,
                         parameters: []
                     };
@@ -1149,9 +1409,6 @@ class EventEditor {
 
             // childCodes에 정의된 자식 코드는 표시하지 않음
             const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
-            if (definition && definition.parentCode !== undefined) {
-                return; // 자식 코드는 스킵
-            }
 
             const indent = (cmd.indent || 0) * 20;
             const color = this.getCommandColor(cmd.code);
@@ -1181,16 +1438,18 @@ class EventEditor {
 
             // 마우스 호버 이벤트
             cmdDiv.addEventListener('mouseenter', (e) => {
-                if (!previousSelection || !previousSelection.indices.includes(index)) {
+                // 현재 선택된 항목이 아닐 때만 호버 효과
+                if (!em.selectedCommand || !em.selectedCommand.indices.includes(index)) {
                     cmdDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
                 }
             });
 
             cmdDiv.addEventListener('mouseleave', (e) => {
-                if (!previousSelection || !previousSelection.indices.includes(index)) {
-                    cmdDiv.style.backgroundColor = 'transparent';
-                } else {
+                // 현재 선택된 항목이면 선택 색상 유지, 아니면 투명
+                if (em.selectedCommand && em.selectedCommand.indices.includes(index)) {
                     cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+                } else {
+                    cmdDiv.style.backgroundColor = 'transparent';
                 }
             });
 
@@ -1228,69 +1487,37 @@ class EventEditor {
 
             const commandText = this.getCommandText(cmd.code, cmd.parameters, new Command(cmd, index, commands));
 
-            // selectable 속성 확인 (기본값 true)
-            const selectable = definition?.selectable !== false;
-            const prefixStr = selectable ? '<span style="color: #888;">◆</span>' : ""
+            // selectable 속성 확인: parentCode가 있으면 선택 불가
+            const selectable = !(definition && definition.parentCode !== undefined);
+            const prefixStr = selectable ? '<span style="color: #888;">◆</span>' : ''
+
 
             cmdDiv.innerHTML = `${prefixStr}${commandText}`;
             contentsList.appendChild(cmdDiv);
 
-            // childCodes가 있으면 자식 코드들도 서브라인으로 표시
-            if (definition && definition.childCodes && definition.childCodes.length > 0) {
-                const childCodes = definition.childCodes;
-                
-                for (let i = index + 1; i < commands.length; i++) {
-                    const childCmd = commands[i];
-                    if (!childCmd) continue;
-                    
-                    const childDefinition = EVENT_COMMAND_DEFINITIONS[childCmd.code];
-                    
-                    // 자식 코드이면 서브라인으로 표시
-                    if (childDefinition && childDefinition.parentCode === cmd.code) {
-                        const subDiv = document.createElement('div');
-                        subDiv.style.cssText = `
-                        padding: 2px 4px;
-                        margin-left: ${indent}px;
-                        color: ${color};
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                        line-height: 1.4;
-                    `;
-                        const childText = this.getCommandText(childCmd.code, childCmd.parameters, new Command(childCmd, i, commands));
-                        subDiv.innerHTML = `${childText}`;
-                        contentsList.appendChild(subDiv);
-                    }
-                    
-                    // endCode를 만나면 종료
-                    if (definition.endCode && childCmd.code === definition.endCode) {
-                        break;
-                    }
-                }
-            }
-
             // 이동 루트 설정 커맨드(205) 뒤에 이동 명령들 표시
-            if (cmd.code === 205) {
-                const moveRoute = cmd.parameters[1];
-                if (moveRoute && moveRoute.list) {
-                    moveRoute.list.forEach(routeCmd => {
-                        // 종료 코드(0)는 표시하지 않음
-                        if (routeCmd.code === 0) return;
+            // if (cmd.code === 205) {
+            //     const moveRoute = cmd.parameters[1];
+            //     if (moveRoute && moveRoute.list) {
+            //         moveRoute.list.forEach(routeCmd => {
+            //             // 종료 코드(0)는 표시하지 않음
+            //             if (routeCmd.code === 0) return;
 
-                        const routeText = this.getMoveRouteCommandText(routeCmd.code, routeCmd.parameters);
-                        const subDiv = document.createElement('div');
-                        subDiv.style.cssText = `
-                        padding: 2px 4px;
-                        margin-left: ${indent}px;
-                        color: ${color};
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                        line-height: 1.4;
-                    `;
-                        subDiv.innerHTML = `<span style="color: #888;">：　　　　　　　：◇</span>${routeText}`;
-                        contentsList.appendChild(subDiv);
-                    });
-                }
-            }
+            //             const routeText = this.getMoveRouteCommandText(routeCmd.code, routeCmd.parameters);
+            //             const subDiv = document.createElement('div');
+            //             subDiv.style.cssText = `
+            //             padding: 2px 4px;
+            //             margin-left: ${indent}px;
+            //             color: ${color};
+            //             white-space: pre-wrap;
+            //             word-wrap: break-word;
+            //             line-height: 1.4;
+            //         `;
+            //             subDiv.innerHTML = `<span style="color: #888;">：　　　　　　　：◇</span>${routeText}`;
+            //             contentsList.appendChild(subDiv);
+            //         });
+            //     }
+            // }
         });
 
         // 선택 상태 복원

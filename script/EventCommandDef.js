@@ -1,5 +1,9 @@
 /**
- * @typedef {'text'|'number'|'select'|'switch'|'variable'|'face-selector'|'message-text'|'choice-list'|'audio-selector'|'checkbox'|'select-direction'|'select-speed'|'select-character'|'toggle'|'select-balloon'} FieldType
+ * @typedef {'text'|'number'|'select'|'switch'|'variable'|
+ * 'face-selector'|'message-text'|'choice-list'|
+ * 'audio-selector'|'checkbox'|'select-direction'|
+ * 'select-speed'|'select-character'|'toggle'|
+ * 'select-balloon'} FieldType
  */
 
 /**
@@ -9,7 +13,7 @@
  * @property {number} paramIndex - 파라미터 인덱스
  * @property {*} [default] - 기본값
  * @property {number} [min] - 최솟값 (number 타입)
- * @property {number} [max] - 최댓값 (number 타입)
+ * @property {number} [max] - 최댓값 (number 타입)이
  * @property {Array<{value: *, label: string}>} [options] - 선택지 배열 (select 타입)
  * @property {number} [linkedParamIndex] - 연결된 파라미터 인덱스 (face-selector, choice-list)
  * @property {number} [maxChoices] - 최대 선택지 개수 (choice-list)
@@ -29,12 +33,18 @@
 // 이벤트 커맨드 정의
 /** @type {Object<number, CommandDefinition>} */
 const EVENT_COMMAND_DEFINITIONS = {
+    0:{
+        name: '빈 커맨드',
+        getDisplayText: (params) => {
+            return ``;
+        }
+    },
     // 메시지
     101: {
         name: '텍스트 표시',
         category: '메시지',
         defaultParm: ['', 0, 0, 2, ''], // [faceName, faceIndex, background, position, speakerName]
-        childCodes: [401],
+        listCode: 401, // 연속된 401 코드들이 이어짐
         getDisplayText: (params) => {
             const faceName = params[0] || '없음';
             const faceIndex = params[1] || 0;
@@ -56,9 +66,8 @@ const EVENT_COMMAND_DEFINITIONS = {
                 label: '얼굴 이미지'
             },
             speaker: {
-                label: '화자',
                 type: 'text',
-                default: ''
+                label: '화자'
             },
             background: {
                 label: '배경',
@@ -81,6 +90,7 @@ const EVENT_COMMAND_DEFINITIONS = {
         },
         getValue: (cmd, editor) => {
             const codes = cmd.collectCodes(401);
+            console.log(codes)
             editor.message.value = codes.map(c => c.parameters[0] || '').join('\n');
             // face-selector는 dataset 사용
             editor.face.faceName = cmd.parameters[0] || '';
@@ -123,8 +133,7 @@ const EVENT_COMMAND_DEFINITIONS = {
         name: '선택지 표시',
         category: '메시지',
         defaultParm: [['예', '아니오'], 1, 0, 0, 0], // [choices[], cancelType, defaultIndex, positionIndex, backgroundIndex]
-        childCodes: [402, 403, 404],
-        endCode: 404,
+        childCodes: [402, 403, 404], // 마지막 요소 404가 endCode
         getDisplayText: (params) => {
             const choices = params[0] || [];
             const choicesStr = Array.isArray(choices) ? choices.join(', ') : choices;
@@ -336,7 +345,6 @@ const EVENT_COMMAND_DEFINITIONS = {
     },
     404: {
         parentCode: 102,
-        defaultParm: [],
         getDisplayText: (params) => {
             return `：분기 종료`;
         }
