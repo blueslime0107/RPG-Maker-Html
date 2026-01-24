@@ -54,13 +54,18 @@
                         <button class="tab-btn" data-tab="R">R</button>
                     </div>
                     <div class="layer-select-container">
-                        <div class="panel-header">레이어</div>
                         <div class="layer-buttons">
                             <button class="layer-btn active" data-layer="auto">자동</button>
                             <button class="layer-btn" data-layer="0">1</button>
                             <button class="layer-btn" data-layer="1">2</button>
                             <button class="layer-btn" data-layer="2">3</button>
                             <button class="layer-btn" data-layer="3">4</button>
+                        </div>
+                        <div class="tool-buttons" style="display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap;">
+                            <button class="tool-btn active" data-tool="pen" title="펜 (타일 그리기)" style="flex: 1; min-width: 40px;">🖊️</button>
+                            <button class="tool-btn" data-tool="eraser" title="지우개 (타일 삭제)" style="flex: 1; min-width: 40px;">🧹</button>
+                            <button class="tool-btn" data-tool="rect" title="사각형 (드래그하여 사각형 채우기)" style="flex: 1; min-width: 40px;">▭</button>
+                            <button class="tool-btn" data-tool="reset-zoom" title="1:1 (확대/축소 초기화)" style="flex: 1; min-width: 40px;">🔍</button>
                         </div>
                     </div>
                     <div id="map-tree">
@@ -75,7 +80,9 @@
                 <div id="map-grid-container">
                     <canvas id="map-canvas"></canvas>
                     <canvas id="map-overlay-canvas"
-                        style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
+                        style="position: absolute; left: 0; top: 0; pointer-events: none; z-index: 10;"></canvas>
+                    <canvas id="event-overlay-canvas"
+                        style="position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1000;"></canvas>
                 </div>
             </section>
 

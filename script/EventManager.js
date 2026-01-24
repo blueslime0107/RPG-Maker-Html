@@ -30,13 +30,22 @@ class EventManager {
 
     // 맵에 있는 이벤트들을 불러와서 그리기
     render() {
+        console.log("renderStart")
         this.events = this.map.events.filter(x => x != null);
+
+        //이벤트 오버레이 캔버스 초기화
+        const eventCanvas = document.getElementById('event-overlay-canvas');
+        if (eventCanvas) {
+            const ctx = eventCanvas.getContext('2d');
+            ctx.clearRect(0, 0, eventCanvas.width, eventCanvas.height);
+        }
 
         // 플레이어 렌더링
         this.drawPlayer();
 
         // 이벤트 렌더링
         for (const event of this.map.events) {
+        console.log(event)
             if (!event || !event.pages || event.pages.length === 0) continue;
 
             const x = event.x;
@@ -48,7 +57,7 @@ class EventManager {
     }
 
     drawPlayer() {
-        const canvas = document.getElementById('map-canvas');
+        const canvas = document.getElementById('event-overlay-canvas');
         const ctx = canvas.getContext('2d');
         // 플레이어가 현재 맵에 있는지 확인
         if( main.mapInfo.id !== main.systemData.startMapId) {
@@ -135,12 +144,13 @@ class EventManager {
         const dx = x * TILE_SIZE;
         const dy = y * TILE_SIZE;
         const info = event.pages[0].image
-        const canvas = document.getElementById('map-canvas');
+        const canvas = document.getElementById('event-overlay-canvas');
         const ctx = canvas.getContext('2d');
 
         let img = null
         if (info.tileId) {
             const tile = main.mapManager.loader.getNormalTile(info.tileId)
+            console.log(ctx)
             ctx.drawImage(
                 tile.img,
                 tile.sx, tile.sy, TILE_SIZE, TILE_SIZE,
@@ -169,7 +179,7 @@ class EventManager {
             const direction = info.direction !== undefined ? info.direction : 2;
             const sx = (col * 3 + pattern) * charW;
             const sy = (row * 4 + (direction / 2 - 1)) * charH;
-
+            console.log(ctx)
             ctx.drawImage(
                 img,
                 sx, sy, charW, charH,
@@ -178,8 +188,7 @@ class EventManager {
                 charW, charH
             );
         }
-
-        // 2. 에디터 전용 시각화 (노란색 가이드)
+        console.log(dx,dy)
         ctx.strokeStyle = 'rgba(0, 140, 255, 1)';
         ctx.lineWidth = 4;
         ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
@@ -315,7 +324,7 @@ class EventManager {
                 if (tileX >= 0 && tileX < this.map.width && tileY >= 0 && tileY < this.map.height) {
                     this.draggedEvent.x = tileX;
                     this.draggedEvent.y = tileY;
-                    main.mapManager.renderMap();
+                    this.loadEvent();
                     dragStartX = tileX;
                     dragStartY = tileY;
                 }
@@ -338,7 +347,7 @@ class EventManager {
                 // 충돌 시 원래 위치로 복귀
                 this.draggedEvent.x = this.dragStartPos.x;
                 this.draggedEvent.y = this.dragStartPos.y;
-                main.mapManager.renderMap();
+                this.loadEvent();
             }
 
             isDragging = false;
@@ -572,7 +581,7 @@ class EventManager {
         main.systemData.startMapId = main.mapInfo.id;
         main.systemData.startX = x;
         main.systemData.startY = y;
-        main.mapManager.renderMap();
+        this.loadEvent();
         console.log(`플레이어 시작 위치 설정됨: 맵 ${main.mapInfo.id}, (${x}, ${y})`);
     }
 
@@ -629,7 +638,7 @@ class EventManager {
 
         this.map.events[newId] = newEvent;
         this.events = this.map.events.filter(x => x != null);
-        main.mapManager.renderMap();
+        this.loadEvent();
         this.loadEventToInspector(newEvent);
         console.log(`이벤트 생성: ID ${newId}, (${x}, ${y})`);
     }
@@ -664,7 +673,7 @@ class EventManager {
 
         this.map.events[newId] = newEvent;
         this.events = this.map.events.filter(x => x != null);
-        main.mapManager.renderMap();
+        this.loadEvent();
         console.log(`이벤트 붙여넣기: ID ${newId}, (${x}, ${y})`);
     }
 
@@ -682,7 +691,7 @@ class EventManager {
             document.getElementById('inspector-empty').style.display = 'block';
         }
 
-        main.mapManager.renderMap();
+        this.loadEvent();
         console.log('이벤트 삭제:', event.id);
     }
 

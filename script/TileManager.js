@@ -10,8 +10,10 @@ class MapManager {
         // A1 타일셋 메타데이터 (8x2 배열)
         // 레이어: 0=땅(Ground), 1=바닥(Floor)
         this.A1_LAYER_MAP = [
-            [0, 0, 1, 1, 0, 0, 0, 0], // 첫 번째 행
-            [0, 0, 0, 1, 0, 1, 0, 1]  // 두 번째 행
+            [0, null,null, 1, 0, null, null, 0],
+            [0, null,null, 1, 0, null, null, 0],    
+            [0, null,null, 1, 0, null, null, 0],
+            [0, null,null, 1, 0, null, null, 0],  
         ];
         
         // 오토타일 타입: 'floor'=바닥, 'wall'=벽, 'waterfall'=폭포, 'fixed'=고정
@@ -51,7 +53,6 @@ class MapManager {
     renderMap() {
         if (!main.map) return;
         this.loader.render(); // MapLoader를 통한 타일 렌더링
-        main.eventManager.render(); // 이벤트 렌더링
     }
 
 
@@ -59,15 +60,12 @@ class MapManager {
         
         if (!main.map) return;
 
-        const width = main.map.width;
-        const height = main.map.height;
-
         for (let h = 0; h < selectedTile.h; h++) {
             for (let w = 0; w < selectedTile.w; w++) {
                 const targetX = mapX + w;
                 const targetY = mapY + h;
 
-                if (targetX >= width || targetY >= height) continue;
+                if (this.isOutofMap(targetX, targetY)) continue;
 
                 const tileId = this.calculateTileId(selectedTile, w, h);
                 
@@ -87,27 +85,39 @@ class MapManager {
                     finalTileId = this.calculateAutotilePattern(targetX, targetY, layerIdx, tileId);
                 }
 
-                const index = (layerIdx * width * height) + (targetY * width) + targetX;
-                main.map.data[index] = finalTileId;
+                this.setMapData(targetX, targetY, layerIdx, finalTileId);
 
                 // 오토타일 전파: 주변 8칸 재계산 (항상 수행 - 인접 타일이 오토타일일 수 있음)
                 // 레이어 0, 1에서만 오토타일 연결이 발생함
-                if (layerIdx <= 1) {
-                    this.propagateAutotile(targetX, targetY, layerIdx);
-                }
+                this.propagateAutotile(targetX, targetY, layerIdx);
             }
         }
         this.renderMap();
     }
 
     // 특정 좌표의 레이어 타일값 조회 함수
-    getTileAt(x, y, layerIdx) {
+    getTileIndex(x, y, layerIdx) {
         if (!main.map) return 0;
         const width = main.map.width;
         const height = main.map.height;
         if (x < 0 || x >= width || y < 0 || y >= height) return 0;
-        const index = (layerIdx * width * height) + (y * width) + x;
-        return main.map.data[index] || 0;
+        return (layerIdx * width * height) + (y * width) + x;
+    }
+
+    // 맵 범위 밖인지 검사
+    isOutofMap(x, y) {
+        if (!main.map) return true;
+        return x < 0 || x >= main.map.width || y < 0 || y >= main.map.height;
+    }
+
+    // 통합 맵 데이터 접근 헬퍼 (읽기)
+    mapData(x, y, layerIdx) {
+        return main.map.data[this.getTileIndex(x, y, layerIdx)];
+    }
+
+    // 통합 맵 데이터 설정 헬퍼 (쓰기)
+    setMapData(x, y, layerIdx, value) {
+        main.map.data[this.getTileIndex(x, y, layerIdx)] = value;
     }
 
     // 오토타일 여부 확인
@@ -145,7 +155,7 @@ class MapManager {
         const baseId = this.getAutotileBaseId(baseTileId);
         
         // 타일 타입 확인 및 적절한 autotile 테이블 선택
-        let tileType = 'A타일';
+        let tileType = 'A1';
         let autotileType = '';
         let autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
         
@@ -195,9 +205,8 @@ class MapManager {
             const checkY = y + dy;
 
             // 맵 범위 밖은 연결되지 않은 것으로 간주
-            if (checkX >= 0 && checkX < width && checkY >= 0 && checkY < height) {
-                const checkIndex = (layerIdx * width * height) + (checkY * width) + checkX;
-                const checkTileId = main.map.data[checkIndex] || 0;
+            if (!this.isOutofMap(checkX, checkY)) {
+                const checkTileId = this.mapData(checkX, checkY, layerIdx);
                 const checkBaseId = this.getAutotileBaseId(checkTileId);
 
                 // 같은 base ID를 가진 타일이면 연결됨
@@ -590,16 +599,15 @@ class MapManager {
             const checkX = x + dx;
             const checkY = y + dy;
 
-            if (checkX < 0 || checkX >= width || checkY < 0 || checkY >= height) continue;
+            if (this.isOutofMap(checkX, checkY)) continue;
 
-            const checkIndex = (layerIdx * width * height) + (checkY * width) + checkX;
-            const checkTileId = main.map.data[checkIndex];
+            const checkTileId = this.mapData(checkX, checkY, layerIdx);
 
             // 주변 타일이 오토타일이면 재계산
             if (this.isAutotile(checkTileId)) {
                 const baseId = this.getAutotileBaseId(checkTileId);
                 const newPattern = this.calculateAutotilePattern(checkX, checkY, layerIdx, baseId);
-                main.map.data[checkIndex] = newPattern;
+                this.setMapData(checkX, checkY, layerIdx, newPattern);
             }
         }
     }
@@ -616,12 +624,11 @@ class MapManager {
                 const targetX = mapX + w;
                 const targetY = mapY + h;
 
-                if (targetX >= width || targetY >= height) continue;
+                if (this.isOutofMap(targetX, targetY)) continue;
 
                 // R 탭(리전)은 Layer 5 지우기
                 if (selectedTile.tab === 'R') {
-                    const index = (5 * width * height) + (targetY * width) + targetX;
-                    main.map.data[index] = 0;
+                    this.setMapData(targetX, targetY, 5, 0);
                     continue;
                 }
 
@@ -629,39 +636,34 @@ class MapManager {
                 if (layerMode === 'auto') {
                     if (selectedTile.tab === 'A') {
                         // A 그룹: Layer 1 → Layer 0 순으로 지우기
-                        const layer1Index = (1 * width * height) + (targetY * width) + targetX;
-                        if (main.map.data[layer1Index] !== 0) {
-                            const oldTileId = main.map.data[layer1Index];
-                            main.map.data[layer1Index] = 0;
+                        if (this.mapData(targetX, targetY, 1) !== 0) {
+                            const oldTileId = this.mapData(targetX, targetY, 1);
+                            this.setMapData(targetX, targetY, 1, 0);
                             // 오토타일이었다면 주변 전파
                             if (this.isAutotile(oldTileId)) {
                                 this.propagateAutotile(targetX, targetY, 1);
                             }
                         } else {
-                            const layer0Index = (0 * width * height) + (targetY * width) + targetX;
-                            const oldTileId = main.map.data[layer0Index];
-                            main.map.data[layer0Index] = 0;
+                            const oldTileId = this.mapData(targetX, targetY, 0);
+                            this.setMapData(targetX, targetY, 0, 0);
                             if (this.isAutotile(oldTileId)) {
                                 this.propagateAutotile(targetX, targetY, 0);
                             }
                         }
                     } else {
                         // B~E 그룹: Layer 3 → Layer 2 순으로 지우기
-                        const layer3Index = (3 * width * height) + (targetY * width) + targetX;
-                        if (main.map.data[layer3Index] !== 0) {
-                            main.map.data[layer3Index] = 0;
+                        if (this.mapData(targetX, targetY, 3) !== 0) {
+                            this.setMapData(targetX, targetY, 3, 0);
                         } else {
-                            const layer2Index = (2 * width * height) + (targetY * width) + targetX;
-                            main.map.data[layer2Index] = 0;
+                            this.setMapData(targetX, targetY, 2, 0);
                         }
                     }
                 } else {
                     // 수동 모드: 선택한 레이어만 지우기
                     const layerIdx = parseInt(layerMode);
-                    const index = (layerIdx * width * height) + (targetY * width) + targetX;
-                    const oldTileId = main.map.data[index];
-                    main.map.data[index] = 0;
-                    
+                    const oldTileId = this.mapData(targetX, targetY, layerIdx);
+                    this.setMapData(targetX, targetY, layerIdx, 0);
+
                     // 오토타일이었다면 주변 전파
                     if (this.isAutotile(oldTileId)) {
                         this.propagateAutotile(targetX, targetY, layerIdx);
@@ -674,63 +676,43 @@ class MapManager {
 
     // 자동 레이어 결정 로직
     determineAutoLayer(x, y, tileId, tab) {
-        const width = main.map.width;
-        const height = main.map.height;
 
-        // 비교를 위해 타일 ID를 Base ID로 변환
-        const targetBaseId = this.getAutotileBaseId(tileId);
-
-        // A그룹: Layer 0-1 (하층)
+        // A그룹: Layer 0-1 (하층)  
         if (tab === 'A') {
-            // A1 타일인 경우 메타데이터에 따라 레이어 결정
-            if (this.loader.isTileA1(tileId)) {
+            let targetLayer = 0
+            if(!this.loader.isTileA5(tileId)){
+                // A1 타일인 경우 메타데이터에 따라 레이어 결정
                 const tileIndex = Math.floor((tileId - this.loader.TILE_ID_A1) / 48);
                 const row = Math.floor(tileIndex / 8);
                 const col = tileIndex % 8;
-                // console.log(row,col)
-                
-                if (row < 2 && col < 8) {
-                    const targetLayer = this.A1_LAYER_MAP[row][col];
-                    
-                    // 땅(Layer 0)을 배치하는 경우, 위의 모든 레이어 삭제
-                    if (targetLayer === 0) {
-                        const index1 = (1 * width * height) + (y * width) + x;
-                        const index2 = (2 * width * height) + (y * width) + x;
-                        const index3 = (3 * width * height) + (y * width) + x;
-                        const index4 = (4 * width * height) + (y * width) + x;
-                        main.map.data[index1] = 0;
-                        main.map.data[index2] = 0;
-                        main.map.data[index3] = 0;
-                        main.map.data[index4] = 0;
-                    }
-                    
-                    return targetLayer;
+                if(this.loader.isTileA1(tileId)){
+                    targetLayer = this.A1_LAYER_MAP[row][col];
                 }
+                if(this.loader.isTileA2(tileId) && col >=4){
+                    targetLayer = 1;
+                }
+            }else{
+                targetLayer = 1;
             }
-            
-            // A1이 아닌 A 타일의 기존 로직
-            const layer0Index = (0 * width * height) + (y * width) + x;
-            const layer0Tile = main.map.data[layer0Index] || 0;
-            const layer0BaseId = this.getAutotileBaseId(layer0Tile);
-            
-            // Layer 0이 비어있거나 같은 종류의 타일이면 Layer 0에 배치 (중복 쌓기 방지)
-            if (layer0Tile === 0 || layer0BaseId === targetBaseId) {
-                return 0;
+            if (targetLayer === 0) {
+                this.setMapData(x, y, 1, 0);
             }
-            // Layer 0에 다른 종류의 타일이 있으면 Layer 1에 배치
-            return 1;
+            this.setMapData(x, y, 2, 0);
+            this.setMapData(x, y, 3, 0);
+            this.setMapData(x, y, 4, 0);
+            return targetLayer
         }
         
         // B~E그룹: Layer 2-3 (상층)
-        const layer2Index = (2 * width * height) + (y * width) + x;
-        const layer2Tile = main.map.data[layer2Index] || 0;
+        const layer3Tile = this.mapData(x,y,3);
         
         // Layer 2가 비어있거나 같은 타일이면 Layer 2에 배치
-        if (layer2Tile === 0 || layer2Tile === tileId) {
-            return 2;
+        if (layer3Tile != 0) {
+            this.setMapData(x, y, 2, layer3Tile);
+            return 3;
         }
         // Layer 2에 다른 타일이 있으면 Layer 3에 배치
-        return 3;
+        return 2;
     }
 
     calculateTileId(selectedTile, offsetX, offsetY) {
@@ -755,15 +737,8 @@ class MapManager {
             if (section === 'A1') {
                 const aMap = [
                     // A1:
-                    [2048,2432, 2192, 2576,2240,2384,2624,2768],
-                    [2100],
-                    // A2:
-                    [2816,2864, 2912,2976,3016,3064,3112,3160],
-                    [3208,3256, 3304,3368,3408,3456,3504,3552],
-                    [3600,3648, 3696,3760,3800,3848,3896,3944],
-                    [3992,4040, 4088,4152,4192,4240,4288,4336],
-                    // // 48씩 8길이
-                    // [4264,4648, 4416, 4800,4456,4600,4840,4984],
+                    [2048,2192,2240,2384,2432,2576,2624,2768],
+                    []
                 ]
                 return aMap[y][x];
             }
@@ -809,6 +784,11 @@ class MapLoader {
         this.canvas = document.getElementById('map-canvas');
         this.ctx = this.canvas.getContext('2d');
         this.tileSize = 48; // MZ 기본 타일 크기
+        
+        // 레이어별 캔버스 시스템
+        this.layerCanvases = [];
+        this.layerContexts = [];
+        this.highlightMode = 'auto'; // 'auto', '0', '1', '2', '3'
 
         this.TILE_ID_B = 0;
         this.TILE_ID_C = 256;
@@ -926,19 +906,71 @@ class MapLoader {
         // 1. 캔버스 크기 설정 (타일 개수 * 48px)
         this.canvas.width = this.mapData.width * this.tileSize;
         this.canvas.height = this.mapData.height * this.tileSize;
+        
+        // 2. 레이어별 캔버스 생성 (레이어 0~3, 그림자 레이어 포함)
+        this.createLayerCanvases();
 
+        this.render();
+    }
+    
+    createLayerCanvases() {
+        // 기존 캔버스 정리
+        this.layerCanvases.forEach(canvas => {
+            if (canvas && canvas.parentNode) {
+                canvas.parentNode.removeChild(canvas);
+            }
+        });
+        this.layerCanvases = [];
+        this.layerContexts = [];
+        
+        // 레이어 0~3 + 그림자 레이어 (총 5개)
+        for (let i = 0; i < 5; i++) {
+            const layerCanvas = document.createElement('canvas');
+            layerCanvas.width = this.mapData.width * this.tileSize;
+            layerCanvas.height = this.mapData.height * this.tileSize;
+            layerCanvas.style.position = 'absolute';
+            layerCanvas.style.left = '0';
+            layerCanvas.style.top = '0';
+            layerCanvas.style.pointerEvents = 'none';
+            layerCanvas.style.zIndex = (5 + i).toString(); // 5-9: map-overlay(10), event-overlay(100) 아래
+            
+            this.layerCanvases.push(layerCanvas);
+            this.layerContexts.push(layerCanvas.getContext('2d'));
+        }
+    }
+    
+    setHighlightMode(mode) {
+        this.highlightMode = mode;
         this.render();
     }
 
     render() {
         if (!this.mapData) return;
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
-
+        
+        // 기존 메인 캔버스는 항상 깨끗하게
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 자동 모드: 모든 레이어를 메인 캔버스에 정상 렌더링
+        if (this.highlightMode === 'auto') {
+            this.renderAllLayersNormal();
+            // 레이어 캔버스들을 DOM에서 제거 (숨기기)
+            this.layerCanvases.forEach(canvas => {
+                if (canvas.parentNode) {
+                    canvas.parentNode.removeChild(canvas);
+                }
+            });
+        } else {
+            // 특정 레이어 선택 모드: 레이어별로 분리하여 렌더링
+            this.renderLayersSeparately();
+        }
+    }
+    
+    renderAllLayersNormal() {
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
-                const tileId0 = this.readMapData(x, y, 0)
-                const tileId1 = this.readMapData(x, y, 1)
-                const shadowBits = this.readMapData(x, y, 4)
+                const tileId0 = this.readMapData(x, y, 0);
+                const tileId1 = this.readMapData(x, y, 1);
+                const shadowBits = this.readMapData(x, y, 4);
                 const upperTileId1 = this.readMapData(x, y - 1, 1);
 
                 this.drawTile(tileId0, x, y);
@@ -953,6 +985,88 @@ class MapLoader {
                 }
             }
         }
+    }
+    
+    renderLayersSeparately() {
+        const selectedLayer = parseInt(this.highlightMode);
+        
+        // 모든 레이어 캔버스 초기화
+        this.layerContexts.forEach(ctx => {
+            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        });
+        
+        // 레이어별로 렌더링
+        for (let layer = 0; layer < 4; layer++) {
+            const ctx = this.layerContexts[layer];
+            
+            // 레이어별 강조 효과 설정
+            if (layer === selectedLayer) {
+                // 선택된 레이어: 정상 표시
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1.0;
+            } else if (layer < selectedLayer) {
+                // 선택된 레이어보다 낮은 레이어: 진한 파란색
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1.0;
+            } else {
+                // 선택된 레이어보다 높은 레이어: 투명한 파란색
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1.0;
+            }
+            
+            // 레이어 타일 그리기
+            for (let y = 0; y < this.height; y++) {
+                for (let x = 0; x < this.width; x++) {
+                    const tileId = this.readMapData(x, y, layer);
+                    if (tileId > 0) {
+                        this.drawTileToContext(ctx, tileId, x, y);
+                    }
+                }
+            }
+            
+            // 선택되지 않은 레이어에 파란색 오버레이 적용
+            if (layer !== selectedLayer) {
+                ctx.globalCompositeOperation = 'source-atop';
+                if (layer < selectedLayer) {
+                    // 아래 레이어: 진한 파란색
+                    ctx.fillStyle = 'rgba(0, 100, 255, 0.5)';
+                } else {
+                    // 위 레이어: 투명한 파란색
+                    ctx.fillStyle = 'rgba(0, 150, 255, 0.3)';
+                }
+                ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+            
+            // 컨텍스트 설정 초기화
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+        }
+        
+        // 그림자 레이어 렌더링 (레이어 4)
+        const shadowCtx = this.layerContexts[4];
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                const shadowBits = this.readMapData(x, y, 4);
+                const tileId1 = this.readMapData(x, y, 1);
+                const upperTileId1 = this.readMapData(x, y - 1, 1);
+                
+                this.drawShadowToContext(shadowCtx, shadowBits, x, y);
+                if (this.isTableTile(upperTileId1) && !this.isTableTile(tileId1)) {
+                    const tileId0 = this.readMapData(x, y, 0);
+                    if (!this.isShadowingTile(tileId0)) {
+                        this.drawTableEdgeToContext(shadowCtx, upperTileId1, x, y);
+                    }
+                }
+            }
+        }
+        
+        // 레이어 캔버스들을 DOM에 추가 (아직 없으면)
+        const container = this.canvas.parentNode;
+        this.layerCanvases.forEach((canvas, index) => {
+            if (!canvas.parentNode) {
+                container.appendChild(canvas);
+            }
+        });
     }
 
     readMapData(x, y, z) {
@@ -1169,4 +1283,138 @@ class MapLoader {
             }
         }
     };
+    
+    // 레이어별 캔버스에 그리기 위한 메서드들
+    drawTileToContext(ctx, tileId, x, y) {
+        if (this.isAutotile(tileId)) {
+            this.drawAutotileToContext(ctx, tileId, x, y);
+        } else {
+            this.drawNormalToContext(ctx, tileId, x, y);
+        }
+    }
+    
+    drawAutotileToContext(ctx, tileId, x, y) {
+        const dx = x * this.tileSize;
+        const dy = y * this.tileSize;
+
+        const kind = this.getAutotileKind(tileId);
+        const shape = this.getAutotileShape(tileId);
+        const tx = kind % 8;
+        const ty = Math.floor(kind / 8);
+        let tileType = 'A1';
+        let bx = 0;
+        let by = 0;
+        let autotileTable = this.FLOOR_AUTOTILE_TABLE;
+        let isTable = false;
+
+        if (this.isTileA1(tileId)) {
+            tileType = 'A1';
+            const row = Math.floor(kind / 8);
+            const col = kind % 8;
+            const tileTypeStr = (row < 2 && col < 8) ? main.mapManager.A1_AUTOTILE_TYPE_MAP[row][col] : 'floor';
+            bx = col * 2;
+            by = row * 3;
+            if (tileTypeStr === 'fixed') {
+                autotileTable = this.FLOOR_AUTOTILE_TABLE;
+            } else if (tileTypeStr === 'waterfall') {
+                autotileTable = this.WATERFALL_AUTOTILE_TABLE;
+            } else {
+                autotileTable = this.FLOOR_AUTOTILE_TABLE;
+            }
+        } else if (this.isTileA2(tileId)) {
+            tileType = 'A2';
+            bx = tx * 2;
+            by = (ty - 2) * 3;
+            isTable = this.isTableTile(tileId);
+        } else if (this.isTileA3(tileId)) {
+            tileType = 'A3';
+            bx = tx * 2;
+            by = (ty - 6) * 2;
+            autotileTable = this.WALL_AUTOTILE_TABLE;
+        } else if (this.isTileA4(tileId)) {
+            tileType = 'A4';
+            bx = tx * 2;
+            by = Math.floor((ty - 10) * 2.5 + (ty % 2 === 1 ? 0.5 : 0));
+            if (ty % 2 === 1) {
+                autotileTable = this.WALL_AUTOTILE_TABLE;
+            }
+        }
+        const img = this.images[tileType];
+
+        const table = autotileTable[shape];
+        const w1 = this.tileSize / 2;
+        const h1 = this.tileSize / 2;
+        for (let i = 0; i < 4; i++) {
+            const qsx = table[i][0];
+            const qsy = table[i][1];
+            const sx1 = (bx * 2 + qsx) * w1;
+            const sy1 = (by * 2 + qsy) * h1;
+            const dx1 = dx + (i % 2) * w1;
+            const dy1 = dy + Math.floor(i / 2) * h1;
+            if (isTable && (qsy === 1 || qsy === 5)) {
+                const qsx2 = qsy === 1 ? (4 - qsx) % 4 : qsx;
+                const qsy2 = 3;
+                const sx2 = (bx * 2 + qsx2) * w1;
+                const sy2 = (by * 2 + qsy2) * h1;
+                ctx.drawImage(img, sx2, sy2, w1, h1, dx1, dy1, w1, h1);
+                ctx.drawImage(img, sx1, sy1, w1, h1 / 2, dx1, dy1 + h1 / 2, w1, h1 / 2);
+            } else {
+                ctx.drawImage(img, sx1, sy1, w1, h1, dx1, dy1, w1, h1);
+            }
+        }
+    }
+    
+    drawNormalToContext(ctx, tileId, x, y) {
+        const dx = x * this.tileSize;
+        const dy = y * this.tileSize;
+
+        const tile = this.getNormalTile(tileId);
+        if (!tile.img) {
+            return;
+        }
+
+        ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, dx, dy, 48, 48);
+    }
+    
+    drawShadowToContext(ctx, shadowBits, x, y) {
+        if (shadowBits & 0x0f) {
+            const w1 = this.tileSize / 2;
+            const h1 = this.tileSize / 2;
+            for (let i = 0; i < 4; i++) {
+                if (shadowBits & (1 << i)) {
+                    const dx1 = x * this.tileSize + (i % 2) * w1;
+                    const dy1 = y * this.tileSize + Math.floor(i / 2) * h1;
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(dx1, dy1, w1, h1);
+                }
+            }
+        }
+    }
+    
+    drawTableEdgeToContext(ctx, tileId, x, y) {
+        const dx = x * this.tileSize;
+        const dy = y * this.tileSize;
+        if (this.isTileA2(tileId)) {
+            const autotileTable = this.FLOOR_AUTOTILE_TABLE;
+            const kind = this.getAutotileKind(tileId);
+            const shape = this.getAutotileShape(tileId);
+            const tx = kind % 8;
+            const ty = Math.floor(kind / 8);
+            const bx = tx * 2;
+            const by = (ty - 2) * 3;
+            const table = autotileTable[shape];
+            const w1 = this.tileSize / 2;
+            const h1 = this.tileSize / 2;
+            for (let i = 0; i < 2; i++) {
+                const qsx = table[2 + i][0];
+                const qsy = table[2 + i][1];
+                const sx1 = (bx * 2 + qsx) * w1;
+                const sy1 = (by * 2 + qsy) * h1 + h1 / 2;
+                const dx1 = dx + (i % 2) * w1;
+                const dy1 = dy + Math.floor(i / 2) * h1;
+                const img = this.images['A2'];
+                ctx.drawImage(img, sx1, sy1, w1, h1 / 2, dx1, dy1, w1, h1 / 2);
+            }
+        }
+    }
 }
