@@ -612,11 +612,13 @@ class EditorUI {
         this.isPanning = false;
         this.panStartX = 0;
         this.panStartY = 0;
+        this.currentMouseTile = null; // 현재 마우스 위치 (타일 좌표)
+        this.blueCircleVisible = false; // 파란원 표시 여부
+        this.blueCirclePosition = null; // 파란원 위치 { x, y }
         
-        // 인스펙터 리사이저 초기화
+        // 리사이저 초기화
         this.initInspectorResizer();
-        // 사이드 패널 리사이저 초기화
-        this.initSidePanelResizer();
+        this.initTilesetMapResizer();
     }
 
     // script/main.js 내 EditorUI 클래스에 추가/수정
@@ -631,12 +633,14 @@ class EditorUI {
         this.drawTileset(this.selectedTilesetTab);
     }
 
-    // 인스펙터 리사이저 초기화
+    // 인스펙터 리사이저 초기화 (오른쪽 이벤트 인스펙터)
     initInspectorResizer() {
         const resizer = document.getElementById('inspector-resizer');
         const inspectorPanel = document.getElementById('inspector-panel');
         let isResizing = false;
         let lastX = 0;
+
+        if (!resizer || !inspectorPanel) return;
 
         resizer.addEventListener('mousedown', (e) => {
             isResizing = true;
@@ -668,33 +672,38 @@ class EditorUI {
         });
     }
 
-    // 사이드 패널 리사이저 초기화
-    initSidePanelResizer() {
-        const resizer = document.getElementById('side-panel-resizer');
-        const sidePanel = document.getElementById('side-panel');
+    // 타일셋과 맵 관리 사이 리사이저 초기화
+    initTilesetMapResizer() {
+        const resizer = document.getElementById('tileset-map-resizer');
+        const tilesetWindow = document.getElementById('tileset-window');
+        const mapManagement = document.getElementById('map-management');
         let isResizing = false;
-        let lastX = 0;
+        let lastY = 0;
 
-        if (!resizer || !sidePanel) return;
+        if (!resizer || !tilesetWindow || !mapManagement) return;
 
         resizer.addEventListener('mousedown', (e) => {
             isResizing = true;
-            lastX = e.clientX;
-            document.body.style.cursor = 'col-resize';
+            lastY = e.clientY;
+            document.body.style.cursor = 'row-resize';
             document.body.style.userSelect = 'none';
         });
 
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
 
-            const deltaX = e.clientX - lastX;
-            const currentWidth = sidePanel.offsetWidth;
-            const newWidth = currentWidth + deltaX;
+            const deltaY = e.clientY - lastY;
+            
+            // flex 비율 대신 명시적 높이 설정
+            const currentHeight = tilesetWindow.offsetHeight;
+            const newHeight = currentHeight + deltaY;
 
-            // 최소/최대 너비 제한 (최소 200px, 최대 600px)
-            if (newWidth >= 200 && newWidth <= 600) {
-                sidePanel.style.width = newWidth + 'px';
-                lastX = e.clientX;
+            // 최소/최대 높이 제한 (최소 200px, 최대는 부모 높이의 80%)
+            const parentHeight = tilesetWindow.parentElement.offsetHeight;
+            if (newHeight >= 200 && newHeight <= parentHeight * 0.8) {
+                tilesetWindow.style.flex = 'none';
+                tilesetWindow.style.height = newHeight + 'px';
+                lastY = e.clientY;
             }
         });
 
@@ -1052,6 +1061,22 @@ class EditorUI {
         window.addEventListener('mouseup', () => {
             isDragging = false;
         });
+        
+        // 우클릭으로 선택 1칸으로 초기화
+        tsCanvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); // 기본 컨텍스트 메뉴 방지
+            
+            const rect = tsCanvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / 48);
+            const y = Math.floor((e.clientY - rect.top) / 48);
+            
+            // 8칸 고정이므로 X축 범위 제한 (0~7)
+            const clampedX = Math.max(0, Math.min(7, x));
+            const clampedY = Math.max(0, y);
+            
+            // 1칸 선택으로 초기화 (선택 사각형은 유지)
+            this.updateTilesetSelection(clampedX, clampedY, clampedX, clampedY);
+        });
     }
 
     updateTilesetSelection(x1, y1, x2, y2) {
@@ -1192,6 +1217,9 @@ class EditorUI {
         const item = document.createElement('div');
         item.className = 'map-item';
         item.dataset.id = node.id;
+        
+        // 드래그 가능하도록 설정
+        item.draggable = true;
 
         // --- 우클릭(컨텍스트 메뉴) 이벤트 추가 ---
         item.oncontextmenu = (e) => {
@@ -1200,6 +1228,58 @@ class EditorUI {
 
             // 메뉴를 표시하는 함수 호출 (좌표와 노드 정보를 넘김)
             this.showMapContextMenu(e.pageX, e.pageY, node);
+        };
+        
+        // 드래그 시작
+        item.ondragstart = (e) => {
+            e.stopPropagation();
+            this.draggedMapId = node.id;
+            item.style.opacity = '0.5';
+        };
+        
+        // 드래그 종료
+        item.ondragend = (e) => {
+            item.style.opacity = '1';
+            this.clearMapDropIndicator();
+        };
+        
+        // 드래그 오버 (0.5 그리드 표시)
+        item.ondragover = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (this.draggedMapId === node.id) return;
+            
+            const rect = item.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const itemTop = rect.top;
+            const itemHeight = rect.height;
+            const relativeY = mouseY - itemTop;
+            
+            // 상단 1/3: 위에 삽입, 중간 1/3: 자식으로, 하단 1/3: 아래에 삽입
+            if (relativeY < itemHeight / 3) {
+                this.showMapDropIndicator(item, 'before');
+                this.dropPosition = { targetId: node.id, position: 'before' };
+            } else if (relativeY > itemHeight * 2 / 3) {
+                this.showMapDropIndicator(item, 'after');
+                this.dropPosition = { targetId: node.id, position: 'after' };
+            } else {
+                this.showMapDropIndicator(item, 'child');
+                this.dropPosition = { targetId: node.id, position: 'child' };
+            }
+        };
+        
+        // 드롭
+        item.ondrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (!this.draggedMapId || !this.dropPosition) return;
+            
+            this.moveMapNode(this.draggedMapId, this.dropPosition);
+            this.draggedMapId = null;
+            this.dropPosition = null;
+            this.clearMapDropIndicator();
         };
 
         // main 전역 변수의 map 참조
@@ -1310,6 +1390,7 @@ class EditorUI {
                         opt.action();
                     }
                     menu.remove();
+                    this.clearBlueCircle(); // 파란원 제거
                 };
             }
             menu.appendChild(div);
@@ -1322,6 +1403,7 @@ class EditorUI {
             const closeMenu = (e) => {
                 if (!menu.contains(e.target)) {
                     menu.remove();
+                    this.clearBlueCircle(); // 파란원 제거
                     document.removeEventListener('click', closeMenu);
                 }
             };
@@ -1644,50 +1726,85 @@ class EditorUI {
             // zoom/pan을 고려한 타일 좌표 계산
             const { x: tileX, y: tileY } = this.getMapCoordinates(e.clientX, e.clientY);
             
-            // 맵 범위 밖이면 그리지 않음
-            if (!main.map || tileX < 0 || tileX >= main.map.width || tileY < 0 || tileY >= main.map.height) {
-                ctx.clearRect(0, 0, overlay.width, overlay.height);
-                return;
-            }
-
-            // 오버레이 지우기
+            // 현재 마우스 위치 저장
+            this.currentMouseTile = { x: tileX, y: tileY };
+            
+            // 맵 범위 밖이면 선택범위 안 그림
+            const isInMap = main.map && tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height;
+            
+            // 전체 지우기
             ctx.clearRect(0, 0, overlay.width, overlay.height);
+            
+            // 1. 선택범위 그리기 (마우스가 맵 안에 있을 때)
+            if (isInMap) {
+                const tw = this.selectedTile ? this.selectedTile.w : 1;
+                const th = this.selectedTile ? this.selectedTile.h : 1;
 
-            // 선택된 타일의 크기 가져오기 (없으면 1x1)
-            const tw = this.selectedTile ? this.selectedTile.w : 1;
-            const th = this.selectedTile ? this.selectedTile.h : 1;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
 
-            // 하이라이트 그리기 (캔버스 로컬 좌표 - transform은 CSS에서 자동 적용됨)
-            ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
 
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-
-            // 다중 선택 시 내부 격자 가이드
-            if (tw > 1 || th > 1) {
+                // 다중 선택 시 내부 격자 가이드
+                if (tw > 1 || th > 1) {
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.lineWidth = 1;
+                    for (let i = 1; i < th; i++) {
+                        ctx.moveTo(tileX * 48, (tileY + i) * 48);
+                        ctx.lineTo((tileX + tw) * 48, (tileY + i) * 48);
+                    }
+                    for (let i = 1; i < tw; i++) {
+                        ctx.moveTo((tileX + i) * 48, tileY * 48);
+                        ctx.lineTo((tileX + i) * 48, (tileY + th) * 48);
+                    }
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+            
+            // 2. 파란원 그리기 (바로가기 메뉴가 있을 때)
+            if (this.blueCircleVisible && this.blueCirclePosition) {
+                const centerX = this.blueCirclePosition.x * 48 + 24;
+                const centerY = this.blueCirclePosition.y * 48 + 24;
+                const radius = 20;
+                
+                ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
+                ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+                ctx.lineWidth = 3;
+                
                 ctx.beginPath();
-                ctx.setLineDash([4, 4]);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.lineWidth = 1;
-                // 가로선
-                for (let i = 1; i < th; i++) {
-                    ctx.moveTo(tileX * 48, (tileY + i) * 48);
-                    ctx.lineTo((tileX + tw) * 48, (tileY + i) * 48);
-                }
-                // 세로선
-                for (let i = 1; i < tw; i++) {
-                    ctx.moveTo((tileX + i) * 48, tileY * 48);
-                    ctx.lineTo((tileX + i) * 48, (tileY + th) * 48);
-                }
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.fill();
                 ctx.stroke();
-                ctx.setLineDash([]);
             }
         });
 
         canvas.addEventListener('mouseleave', () => {
+            // 마우스가 맵 밖으로 나가면 무조건 선택 사각형 제거
+            this.currentMouseTile = null;
+            
+            // 전체 다시 그리기
             ctx.clearRect(0, 0, overlay.width, overlay.height);
+            
+            // 파란원만 다시 그리기 (바로가기 메뉴가 있으면)
+            if (this.blueCircleVisible && this.blueCirclePosition) {
+                const centerX = this.blueCirclePosition.x * 48 + 24;
+                const centerY = this.blueCirclePosition.y * 48 + 24;
+                const radius = 20;
+                
+                ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
+                ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+                ctx.lineWidth = 3;
+                
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
         });
     }
 
@@ -1799,9 +1916,49 @@ class EditorUI {
                 paint(e);
             }
         });
+        
+        // 우클릭 이벤트: 선택 범위 1칸으로 초기화 및 파란원 그리기
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            
+            const { x, y } = this.getMapCoordinates(e.clientX, e.clientY);
+            
+            // 맵 범위 체크
+            if (x < 0 || x >= main.map.width || y < 0 || y >= main.map.height) return;
+            
+            // 선택된 타일이 있으면 1칸으로 초기화
+            if (this.selectedTile) {
+                this.selectedTile.w = 1;
+                this.selectedTile.h = 1;
+                
+                // 타일셋뷰의 선택 사각형도 업데이트
+                const selectionRect = document.getElementById('tileset-selection-rect');
+                if (selectionRect) {
+                    selectionRect.style.width = '48px';
+                    selectionRect.style.height = '48px';
+                }
+            }
+            
+            // 파란원 그리기
+            this.drawBlueCircle(x, y);
+            
+            // 다른 곳 클릭시 파란원 제거
+            setTimeout(() => {
+                const clearCircle = (e) => {
+                    this.clearBlueCircle();
+                    document.removeEventListener('click', clearCircle);
+                    document.removeEventListener('contextmenu', clearCircle);
+                };
+                document.addEventListener('click', clearCircle);
+                document.addEventListener('contextmenu', clearCircle);
+            }, 0);
+        });
 
         window.addEventListener('mousemove', (e) => {
             if (this.isPanning) {
+                // 팬 중일 때 컨텍스트 메뉴 닫기
+                this.closeContextMenu();
+                
                 // map-editor 기준 좌표로 계산
                 const mapEditor = document.getElementById('map-editor');
                 const editorRect = mapEditor.getBoundingClientRect();
@@ -1849,6 +2006,9 @@ class EditorUI {
         // 마우스 휠 이벤트: 확대/축소
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
+            
+            // 줌 중일 때 컨텍스트 메뉴 닫기
+            this.closeContextMenu();
             
             const delta = e.deltaY > 0 ? 0.9 : 1.1; // 휠 아래: 축소, 휠 위: 확대
             const newZoom = Math.max(0.1, Math.min(5.0, this.mapZoom * delta)); // 0.1 ~ 5.0 배
@@ -1947,14 +2107,209 @@ class EditorUI {
         ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)';
         ctx.fillStyle = 'rgba(52, 152, 219, 0.2)';
         ctx.lineWidth = 2;
+        ctx.strokeRect(minX * 48, minY * 48, (maxX - minX + 1) * 48, (maxY - minY + 1) * 48);
+        ctx.fillRect(minX * 48, minY * 48, (maxX - minX + 1) * 48, (maxY - minY + 1) * 48);
+    }
+    
+    // 파란원 그리기 (우클릭 위치 표시)
+    drawBlueCircle(x, y) {
+        const overlay = document.getElementById('map-overlay-canvas');
+        const ctx = overlay.getContext('2d');
         
-        const rectX = minX * 48;
-        const rectY = minY * 48;
-        const rectW = (maxX - minX + 1) * 48;
-        const rectH = (maxY - minY + 1) * 48;
+        this.blueCircleVisible = true;
+        this.blueCirclePosition = { x, y };
         
-        ctx.fillRect(rectX, rectY, rectW, rectH);
-        ctx.strokeRect(rectX, rectY, rectW, rectH);
+        // 전체 다시 그리기
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        
+        // 1. 선택범위 그리기 (마우스가 맵 위에 있으면)
+        if (this.currentMouseTile && main.map) {
+            const tileX = this.currentMouseTile.x;
+            const tileY = this.currentMouseTile.y;
+            
+            if (tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height) {
+                const tw = this.selectedTile ? this.selectedTile.w : 1;
+                const th = this.selectedTile ? this.selectedTile.h : 1;
+                
+                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
+            }
+        }
+        
+        // 2. 파란원 그리기
+        const centerX = x * 48 + 24;
+        const centerY = y * 48 + 24;
+        const radius = 20;
+        
+        ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+        ctx.lineWidth = 3;
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+    
+    // 파란원 제거
+    clearBlueCircle() {
+        this.blueCircleVisible = false;
+        this.blueCirclePosition = null;
+        
+        const overlay = document.getElementById('map-overlay-canvas');
+        const ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        
+        // 선택범위만 다시 그리기 (마우스가 맵 위에 있으면)
+        if (this.currentMouseTile && main.map) {
+            const tileX = this.currentMouseTile.x;
+            const tileY = this.currentMouseTile.y;
+            
+            if (tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height) {
+                const tw = this.selectedTile ? this.selectedTile.w : 1;
+                const th = this.selectedTile ? this.selectedTile.h : 1;
+                
+                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
+            }
+        }
+    }
+    
+    // 컨텍스트 메뉴 닫기
+    closeContextMenu() {
+        const menu = document.getElementById('map-context-menu');
+        if (menu) {
+            menu.remove();
+            this.clearBlueCircle();
+        }
+    }
+    
+    // 드롭 인디케이터 표시
+    showMapDropIndicator(element, position) {
+        // 기존 인디케이터 제거
+        this.clearMapDropIndicator();
+        
+        const indicator = document.createElement('div');
+        indicator.id = 'map-drop-indicator';
+        indicator.style.position = 'absolute';
+        indicator.style.backgroundColor = '#f1c40f'; // 노란색
+        indicator.style.pointerEvents = 'none';
+        indicator.style.zIndex = '1000';
+        
+        const rect = element.getBoundingClientRect();
+        
+        if (position === 'before') {
+            // 위에 선 표시
+            indicator.style.left = rect.left + 'px';
+            indicator.style.top = rect.top + 'px';
+            indicator.style.width = rect.width + 'px';
+            indicator.style.height = '2px';
+        } else if (position === 'after') {
+            // 아래에 선 표시
+            indicator.style.left = rect.left + 'px';
+            indicator.style.top = (rect.bottom - 2) + 'px';
+            indicator.style.width = rect.width + 'px';
+            indicator.style.height = '2px';
+        } else if (position === 'child') {
+            // 전체 하이라이트
+            indicator.style.left = rect.left + 'px';
+            indicator.style.top = rect.top + 'px';
+            indicator.style.width = rect.width + 'px';
+            indicator.style.height = rect.height + 'px';
+            indicator.style.backgroundColor = 'rgba(241, 196, 15, 0.3)';
+            indicator.style.border = '2px solid #f1c40f';
+        }
+        
+        document.body.appendChild(indicator);
+    }
+    
+    // 드롭 인디케이터 제거
+    clearMapDropIndicator() {
+        const indicator = document.getElementById('map-drop-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+    
+    // 맵 노드 이동
+    moveMapNode(draggedId, dropInfo) {
+        const { targetId, position } = dropInfo;
+        
+        if (draggedId === targetId) return;
+        
+        const draggedMap = main.mapInfos.find(m => m && m.id === draggedId);
+        const targetMap = main.mapInfos.find(m => m && m.id === targetId);
+        
+        if (!draggedMap || !targetMap) return;
+        
+        // 자신의 자손에게는 이동 불가
+        if (this.isDescendant(draggedId, targetId)) {
+            alert('맵을 자신의 자손으로 이동할 수 없습니다.');
+            return;
+        }
+        
+        if (position === 'child') {
+            // 자식으로 이동
+            draggedMap.parentId = targetId;
+            // order는 마지막으로
+            const siblings = main.mapInfos.filter(m => m && m.parentId === targetId && m.id !== draggedId);
+            draggedMap.order = siblings.length > 0 ? Math.max(...siblings.map(s => s.order)) + 1 : 0;
+        } else {
+            // before 또는 after: 형제로 이동
+            draggedMap.parentId = targetMap.parentId;
+            
+            // 같은 부모의 형제들 가져오기
+            const siblings = main.mapInfos
+                .filter(m => m && m.parentId === targetMap.parentId)
+                .sort((a, b) => a.order - b.order);
+            
+            // 타겟의 order 찾기
+            const targetIndex = siblings.findIndex(s => s.id === targetId);
+            
+            if (position === 'before') {
+                // 타겟 앞에 삽입
+                const newOrder = targetIndex > 0 ? siblings[targetIndex - 1].order + 1 : targetMap.order - 1;
+                draggedMap.order = newOrder;
+            } else {
+                // 타겟 뒤에 삽입
+                const newOrder = targetIndex < siblings.length - 1 ? siblings[targetIndex + 1].order - 1 : targetMap.order + 1;
+                draggedMap.order = newOrder;
+            }
+            
+            // order 재정렬
+            this.reorderMaps(draggedMap.parentId);
+        }
+        
+        // 리렌더링
+        this.renderMapList();
+        console.log(`맵 ${draggedId}를 ${targetId} ${position}로 이동`);
+    }
+    
+    // 자손 체크 (순환 참조 방지)
+    isDescendant(ancestorId, descendantId) {
+        let current = main.mapInfos.find(m => m && m.id === descendantId);
+        while (current && current.parentId !== 0) {
+            if (current.parentId === ancestorId) return true;
+            current = main.mapInfos.find(m => m && m.id === current.parentId);
+        }
+        return false;
+    }
+    
+    // 같은 부모의 맵들 order 재정렬
+    reorderMaps(parentId) {
+        const siblings = main.mapInfos
+            .filter(m => m && m.parentId === parentId)
+            .sort((a, b) => a.order - b.order);
+        
+        siblings.forEach((map, index) => {
+            map.order = index;
+        });
     }
 }
 

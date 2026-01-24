@@ -13,29 +13,10 @@
             <div class="tool-group">
                 <button id="btn-save">프로젝트 저장</button>
             </div>
-            <div class="tool-group">
-                <label>레이어:</label>
-                <select id="layer-select">
-                    <option value="0">L1 (하층)</option>
-                    <option value="1">L2</option>
-                    <option value="2">L3</option>
-                    <option value="3">L4</option>
-                    <option value="4">L5 (상층)</option>
-                </select>
-            </div>
-            <div class="tool-group">
-                <label>인스펙터 폰트:</label>
-                <input type="range" id="inspector-font-size" min="8" max="16" value="11" style="width: 120px;">
-                <span id="font-size-display" style="margin-left: 4px; font-size: 12px; min-width: 30px;">11px</span>
-            </div>
-            <div class="tool-group">
-                <span id="map-info">Map000 (0x0)</span>
-            </div>
         </header>
 
         <main id="workspace">
             <aside id="side-panel">
-                <div id="side-panel-resizer" class="side-panel-resizer"></div>
                 <section id="tileset-window">
                     <div class="panel-header">타일셋 뷰</div>
                     <div id="tileset-view-container">
@@ -43,6 +24,8 @@
                         <div id="tileset-selection-rect"></div>
                     </div>
                 </section>
+
+                <div id="tileset-map-resizer" class="tileset-map-resizer"></div>
 
                 <section id="map-management">
                     <div class="tileset-tabs">
@@ -297,6 +280,17 @@
                     </div>
             </aside>
         </main>
+        
+        <footer id="statusbar">
+            <div class="status-group">
+                <label>인스펙터 폰트:</label>
+                <input type="range" id="inspector-font-size" min="8" max="16" value="11" style="width: 120px;">
+                <span id="font-size-display" style="margin-left: 4px; font-size: 12px; min-width: 30px;">11px</span>
+            </div>
+            <div class="status-group">
+                <span id="map-info">Map000 (0x0)</span>
+            </div>
+        </footer>
     </div>
 
 
