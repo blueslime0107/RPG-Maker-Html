@@ -6,6 +6,19 @@ class MapManager {
         this.tileset = null;
         this.tilesets = null;
         this.loader = new MapLoader();
+        
+        // A1 타일셋 메타데이터 (8x2 배열)
+        // 레이어: 0=땅(Ground), 1=바닥(Floor)
+        this.A1_LAYER_MAP = [
+            [0, 0, 1, 1, 0, 0, 0, 0], // 첫 번째 행
+            [0, 0, 0, 1, 0, 1, 0, 1]  // 두 번째 행
+        ];
+        
+        // 오토타일 타입: 'floor'=바닥, 'wall'=벽, 'waterfall'=폭포, 'fixed'=고정
+        this.A1_AUTOTILE_TYPE_MAP = [
+            ['floor', 'floor', 'fixed', 'fixed', 'floor', 'waterfall', 'floor', 'waterfall'], // 첫 번째 행
+            ['floor', 'waterfall', 'floor', 'fixed', 'floor', 'fixed', 'floor', 'fixed']  // 두 번째 행
+        ];
     }
 
 
@@ -43,12 +56,11 @@ class MapManager {
 
 
     setTile(mapX, mapY, layerMode, selectedTile) {
+        
         if (!main.map) return;
 
         const width = main.map.width;
         const height = main.map.height;
-
-        console.log(`[setTile] 시작 - 좌표: (${mapX}, ${mapY}), 레이어 모드: ${layerMode}, 탭: ${selectedTile.tab}`);
 
         for (let h = 0; h < selectedTile.h; h++) {
             for (let w = 0; w < selectedTile.w; w++) {
@@ -58,32 +70,25 @@ class MapManager {
                 if (targetX >= width || targetY >= height) continue;
 
                 const tileId = this.calculateTileId(selectedTile, w, h);
-                console.log(`  [setTile] 계산된 타일 ID: ${tileId} at (${targetX}, ${targetY})`);
                 
                 // R 탭(리전)은 항상 Layer 5에 배치
                 let layerIdx;
                 if (selectedTile.tab === 'R') {
                     layerIdx = 5;
-                    console.log(`  [setTile] 레이어 결정: Layer ${layerIdx} (리전 탭)`);
                 } else if (layerMode === 'auto') {
                     layerIdx = this.determineAutoLayer(targetX, targetY, tileId, selectedTile.tab);
-                    console.log(`  [setTile] 레이어 결정: Layer ${layerIdx} (자동 모드)`);
                 } else {
                     layerIdx = parseInt(layerMode);
-                    console.log(`  [setTile] 레이어 결정: Layer ${layerIdx} (수동 지정)`);
                 }
 
                 // 오토타일인 경우 주변 타일 검사 후 패턴 결정
                 let finalTileId = tileId;
                 if (this.isAutotile(tileId)) {
-                    console.log(`  [setTile] 오토타일 감지 - 패턴 계산 시작`);
                     finalTileId = this.calculateAutotilePattern(targetX, targetY, layerIdx, tileId);
-                    console.log(`  [setTile] 오토타일 패턴 계산 완료: ${tileId} → ${finalTileId}`);
                 }
 
                 const index = (layerIdx * width * height) + (targetY * width) + targetX;
                 main.map.data[index] = finalTileId;
-                console.log(`  [setTile] 타일 배치 완료 - Layer ${layerIdx}, Index ${index}, FinalTileId: ${finalTileId}`);
 
                 // 오토타일 전파: 주변 8칸 재계산 (항상 수행 - 인접 타일이 오토타일일 수 있음)
                 // 레이어 0, 1에서만 오토타일 연결이 발생함
@@ -107,14 +112,28 @@ class MapManager {
 
     // 오토타일 여부 확인
     isAutotile(tileId) {
-        // A1~A4 범위: 2048 ~ 8192
-        return (tileId >= 2048 && tileId < 8192);
+        // A1~A4 범위
+        return this.loader.isAutotile(tileId);
+    }
+
+    // A1 타일의 오토타일 타입 반환 ('floor', 'wall', 'waterfall', 'fixed')
+    getA1AutotileType(tileId) {
+        if (this.loader.isTileA1(tileId)) {
+            const tileIndex = Math.floor((tileId - this.loader.TILE_ID_A1) / 48);
+            const row = Math.floor(tileIndex / 8);
+            const col = tileIndex % 8;
+            
+            if (row < 2 && col < 8) {
+                return this.A1_AUTOTILE_TYPE_MAP[row][col];
+            }
+        }
+        return 'floor'; // 기본값
     }
 
     // 오토타일의 base ID 추출
     getAutotileBaseId(tileId) {
-        if (tileId >= 2048 && tileId < 8192) {
-            return Math.floor((tileId - 2048) / 48) * 48 + 2048;
+        if (this.loader.isAutotile(tileId)) {
+            return Math.floor((tileId - this.loader.TILE_ID_A1) / 48) * 48 + this.loader.TILE_ID_A1;
         }
         return tileId;
     }
@@ -124,7 +143,41 @@ class MapManager {
         const width = main.map.width;
         const height = main.map.height;
         const baseId = this.getAutotileBaseId(baseTileId);
-        console.log(`      [calculateAutotilePattern] (${x}, ${y}), Layer ${layerIdx}, BaseID: ${baseId}`);
+        
+        // 타일 타입 확인 및 적절한 autotile 테이블 선택
+        let tileType = 'A타일';
+        let autotileType = '';
+        let autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
+        
+        if (this.loader.isTileA1(baseId)) {
+            tileType = 'A1';
+            autotileType = this.getA1AutotileType(baseId);
+            
+            // A1은 타입에 따라 테이블 선택 (MapLoader.drawAutotile과 동일)
+            if (autotileType === 'waterfall') {
+                autotileTable = this.loader.WATERFALL_AUTOTILE_TABLE;
+            } else if (autotileType === 'wall') {
+                autotileTable = this.loader.WALL_AUTOTILE_TABLE;
+            } else { // 'floor' 또는 'fixed'
+                autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
+            }
+        } else if (this.loader.isTileA2(baseId)) {
+            tileType = 'A2';
+            autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
+        } else if (this.loader.isTileA3(baseId)) {
+            tileType = 'A3';
+            autotileTable = this.loader.WALL_AUTOTILE_TABLE;
+        } else if (this.loader.isTileA4(baseId)) {
+            tileType = 'A4';
+            // A4는 짝수/홀수에 따라 다른 테이블 사용
+            const kind = this.loader.getAutotileKind(baseId);
+            const ty = Math.floor(kind / 8);
+            if (ty % 2 === 1) {
+                autotileTable = this.loader.WALL_AUTOTILE_TABLE;
+            } else {
+                autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
+            }
+        }
 
         // 8방향 연결 상태 확인
         const directions = [
@@ -135,7 +188,6 @@ class MapManager {
 
         let pattern = 0;
         let bit = 1;
-        const connectedDirs = [];
 
         for (let i = 0; i < 8; i++) {
             const [dx, dy] = directions[i];
@@ -143,9 +195,7 @@ class MapManager {
             const checkY = y + dy;
 
             // 맵 범위 밖은 연결되지 않은 것으로 간주
-            if (checkX < 0 || checkX >= width || checkY < 0 || checkY >= height) {
-                // 비트는 설정하지 않음
-            } else {
+            if (checkX >= 0 && checkX < width && checkY >= 0 && checkY < height) {
                 const checkIndex = (layerIdx * width * height) + (checkY * width) + checkX;
                 const checkTileId = main.map.data[checkIndex] || 0;
                 const checkBaseId = this.getAutotileBaseId(checkTileId);
@@ -153,181 +203,376 @@ class MapManager {
                 // 같은 base ID를 가진 타일이면 연결됨
                 if (checkBaseId === baseId) {
                     pattern |= bit;
-                    connectedDirs.push(`[${dx},${dy}]`);
                 }
             }
             bit <<= 1;
         }
 
-        console.log(`      [calculateAutotilePattern] 연결된 방향: ${connectedDirs.join(', ')}`);
-        console.log(`      [calculateAutotilePattern] 비트 패턴: 0b${pattern.toString(2).padStart(8, '0')} (${pattern})`);
-
-        // 비트 패턴을 0-47 인덱스로 변환 (간단한 매핑)
-        const patternIndex = this.bitPatternToIndex(pattern);
-        console.log(`      [calculateAutotilePattern] 패턴 인덱스: ${patternIndex}, 최종 타일 ID: ${baseId + patternIndex}`);
+        // 비트 패턴을 해당 테이블의 인덱스로 변환
+        const patternIndex = this.bitPatternToIndex(pattern, autotileTable);
+        
         return baseId + patternIndex;
     }
 
 
-    // 비트 패턴을 0-47 인덱스로 변환 (RPG Maker 표준 매핑)
-    bitPatternToIndex(bitPattern) {
-        console.log(`        [bitPatternToIndex] 입력 비트마스크: 0b${bitPattern.toString(2).padStart(8, '0')}`);
-        const b = bitPattern;
-        const T = (b >> 1) & 1;
-        const B = (b >> 6) & 1;
-        const L = (b >> 3) & 1;
-        const R = (b >> 4) & 1;
+    // 비트 패턴을 autotile 테이블의 인덱스로 변환
+    // RPG Maker MZ 표준 알고리즘 사용
+    bitPatternToIndex(bitPattern, autotileTable) {
+        // 비트 패턴 분해
+        const TL = (bitPattern >> 0) & 1;  // Top-Left (좌상단 코너)
+        const T  = (bitPattern >> 1) & 1;  // Top (위)
+        const TR = (bitPattern >> 2) & 1;  // Top-Right (우상단 코너)
+        const L  = (bitPattern >> 3) & 1;  // Left (왼쪽)
+        const R  = (bitPattern >> 4) & 1;  // Right (오른쪽)
+        const BL = (bitPattern >> 5) & 1;  // Bottom-Left (좌하단 코너)
+        const B  = (bitPattern >> 6) & 1;  // Bottom (아래)
+        const BR = (bitPattern >> 7) & 1;  // Bottom-Right (우하단 코너)
         
-        const TL = ((b >> 0) & 1) && T && L;
-        const TR = ((b >> 2) & 1) && T && R;
-        const BL = ((b >> 5) & 1) && B && L;
-        const BR = ((b >> 7) & 1) && B && R;
+        // RPG Maker MZ 표준 인덱스 계산
+        let index = 0;
+        
+        // WALL 타입 테이블 (16개) - 벽 타일
+        // RPG Maker MZ 공식 알고리즘: L=1, R=2, T=4, B=8
+        if (autotileTable.length === 16) {
+            // 패턴: 오른쪽만 연결
+            // □□□
+            // □ㅇ■
+            // □□□
+            if (!T && R && !B && !L) return 11;
+            // 패턴: 위만 연결
+            // □■□
+            // □ㅇ□
+            // □□□
+            if (T && !R && !B && !L) return 13;
+            // 패턴: 아래만 연결
+            // □□□
+            // □ㅇ□
+            // □■□
+            if (!T && !R && B && !L) return 7;
+            
+            // 패턴: 왼쪽만 연결
+            // □□□
+            // ■ㅇ□
+            // □□□
+            if (!T && !R && !B && L) return 14;
+            // 패턴: 왼쪽+오른쪽만 연결
+            // □□□
+            // ■ㅇ■
+            // □□□
+            if (!T && R && !B && L) return 10;
 
-        // Group 0: No cardinal connections
-        if (!T && !B && !L && !R) return 0;
 
-        // Group 1: One cardinal connection
-        if (!T && !B && !L && R) return 16;
-        if (!T && !B && L && !R) return 24;
-        if (T && !B && !L && !R) return 20;
-        if (!T && B && !L && !R) return 28;
 
-        // Group 2: Two cardinal connections (Opposite)
-        if (!T && !B && L && R) return 32;
-        if (T && B && !L && !R) return 33;
 
-        // Group 3: Two cardinal connections (Adjacent)
-        if (T && L && !R && !B) return TL ? 26 : 10;
-        if (T && R && !L && !B) return TR ? 22 : 2;
-        if (B && L && !R && !T) return BL ? 34 : 14;
-        if (B && R && !L && !T) return BR ? 30 : 6;
-
-        // Group 4: Three cardinal connections
-        // Top + Bottom + Left (Right missing)
-        if (T && B && L && !R) {
-            if (TL && BL) return 42;
-            if (!TL && BL) return 38;
-            if (TL && !BL) return 18;
-            return 12;
+            // 패턴: 4방향 모두 연결
+            // ■■■
+            // ■ㅇ■
+            // ■■■
+            if (T && R && B && L) return 0;
+            
+            
+            
+            
+            
+            
+            // 패턴: 위+오른쪽+아래 연결
+            // □■□
+            // □ㅇ■
+            // □■□
+            if (T && R && B && !L) return 1; // # 완벽
+            // 패턴: 왼쪽+오른쪽+아래 연결
+            // □□□
+            // ■ㅇ■
+            // □■□
+            if (!T && R && B && L) return 2; // # 완벽
+            // 패턴: 오른쪽+아래 연결
+            // □□□
+            // □ㅇ■
+            // □■□
+            if (!T && R && B && !L) return 3; // # 완벽
+            // 패턴: 위+왼쪽+아래 연결
+            // □■□
+            // ■ㅇ□
+            // □■□
+            if (T && !R && B && L) return 4; 
+            // 패턴: 위+아래만 연결
+            // □■□
+            // □ㅇ□
+            // □■□
+            if (T && !R && B && !L) return 5;
+            
+            // 패턴: 왼쪽+아래 연결
+            // □□□
+            // ■ㅇ□
+            // □■□
+            if (!T && !R && B && L) return 6; // # 완벽
+            
+            
+            // 패턴: 위+오른쪽 연결
+            // □■□
+            // □ㅇ■
+            // □□□
+            if (T && R && !B && !L) return 9; // # 완벽
+            
+            // 패턴: 위+왼쪽+오른쪽 연결
+            // □■□
+            // ■ㅇ■
+            // □□□
+            if (T && R && !B && L) return 8; // # 완벽
+            // 패턴: 위+왼쪽 연결
+            // □■□
+            // ■ㅇ□
+            // □□□
+            if (T && !R && !B && L) return 12; // # 완벽
+            
+            
+            
+            
+            // 패턴: 고립 (아무것도 연결 안됨)
+            // □□□
+            // □ㅇ□
+            // □□□
+            return 15;
         }
-        // Top + Bottom + Right (Left missing)
-        if (T && B && R && !L) {
-            if (TR && BR) return 40;
-            if (!TR && BR) return 36;
-            if (TR && !BR) return 16+4; // 20? No conflict with T=20
-            // Wait, 20 is T-only. 
-            // 40, 36 is correct pattern.
-            // Let's map carefully.
-            // 20 is "Single Vertical Top". 
-            // 16 is "Single Horizontal Right".
-            // Here we have vertical bar + right spur.
-            if (TR && !BR) return 20+4; // 24? Conflict.
-            
-            // Re-verify the Group 4 indices.
-            /* 
-               Looking at standard table indices for 3-connection:
-               T-Junctions.
-               T-B-R: 36(TR+BR), 32(?), 28(?), 24(?) -> No.
-               
-               Correct set for T-B-R (Right Bar):
-               40 (TR, BR)
-               36 (no TR, BR) -> 36 is usually used for L+B+R? 
-            */
-            
-            // Let's use the explicit table lookup by composing the index.
-            // 0-47 index is composed of 4 parts (nw, ne, sw, se).
-            // But here we return a single number.
-            
-            // BACKUP STRATEGY: Use the exact return values from verified source.
-            // T+B+R: 
-            if (TR && BR) return 40;
-            if (!TR && BR) return 36;
-            if (TR && !BR) return 20; // This overlaps? No. 20 is T only.
-            // Actually it is:
-            // 40: Both corners
-            // 36: BR only
-            // 20: TR only
-            // 4: No corners
-            // This assumes a base offset relative to something? No.
-            
-            // Let's follow the standard "Autotile Shape" map:
-            // 40 (All), 36 (Bit? No), ...
-            
-            // Alternative:
-            if (TR && BR) return 40;
-            if (!TR && BR) return 36;
-            if (TR && !BR) return 28; // ?
-            return 24; // ?
+        
+        // WATERFALL 타입 테이블 (4개) - 폭포 타일
+        if (autotileTable.length === 4) {
+            // 폭포 타입: 좌우만 고려
+            if (L) index |= 0x01;
+            if (R) index |= 0x02;
+            return index;
         }
         
-        // RE-STARTING MAPPING with 100% Correct Visual Logic (Wall/Floor)
-        // Based on: https://github.com/funige/rmxp/wiki/Autotiles
-        // 46: 10111011 (binary) ? No.
+        // FLOOR 타입 테이블 (48개) - 바닥 타일
+         
         
-        /* 
-           Correct Logic Derived from Table Expansion:
-           Shape is constructed from 4 corners.
-           Standard RPG Maker mapping:
-           
-           bit 0: TL corner connected
-           bit 1: TR corner connected
-           bit 2: BL corner connected
-           bit 3: BR corner connected
-           
-           Wait, simple bitmask of corners? No. Cardinal + Corner.
-        */
-       
-       // I'll stick to the "Corrected" conditional logic I found:
-       
-       if (T && B && L && !R) return (TL && BL) ? 42 : ((!TL && BL) ? 38 : ((TL && !BL) ? 18 : 12));
-       if (T && B && R && !L) return (TR && BR) ? 40 : ((!TR && BR) ? 36 : ((TR && !BR) ? 20 : 4));
-       if (T && L && R && !B) return (TL && TR) ? 44 : ((!TL && TR) ? 41 : ((TL && !TR) ? 27 : 23)); // 23??
-       if (B && L && R && !T) return (BL && BR) ? 46 : ((!BL && BR) ? 45 : ((BL && !BR) ? 43 : 19)); // 19?? 31?
-       
-       // Group 5: All 4 cardinal
-       if (T && B && L && R) {
-           // Count corners
-           // 4 Corners: 47
-           if (TL && TR && BL && BR) return 47;
-           
-           // 3 Corners
-           if (!TL && TR && BL && BR) return 45; // Missing TL (looks like 45 in B-L-R set? No) -> 45 is B-L-R no BL!
-           // It implies indices are reused or my source value is wrong.
-           
-           // Use the cleanest available logic:
-           // https://github.com/dk-plugins/dk-tools/blob/master/DKTools/Tilemap.js
-           // (Or similar)
-           
-           if (TL && TR && BL && BR) return 47;
-           
-           // Individual corners missing from full
-           if (!TL && TR && BL && BR) return 31;
-           if (TL && !TR && BL && BR) return 29;
-           if (TL && TR && !BL && BR) return 15;
-           if (TL && TR && BL && !BR) return 13;
-           
-           // 2 corners
-           if (!TL && !TR && BL && BR) return 21; // Top 2 missing
-           if (TL && TR && !BL && !BR) return 37; // Bottom 2 missing ? No
-           if (!TL && TR && !BL && BR) return 25; // Left 2 missing
-           if (TL && !TR && BL && !BR) return 39; // Right 2 missing
-           
-           if (!TL && TR && BL && !BR) return 11; // Cross
-           if (TL && !TR && !BL && BR) return 7; // Cross
-           
-           // 1 corner
-           if (TL && !TR && !BL && !BR) return 8; // Only TL present? No.
-           if (!TL && TR && !BL && !BR) return 9;
-           if (!TL && !TR && BL && !BR) return 5;
-           if (!TL && !TR && !BL && BR) return 3;
-           
-           // 0 corners
-           return 1;
-       }
-       
-       const result = 0;
-       console.log(`        [bitPatternToIndex] 예외 케이스 - 결과: ${result}`);
-       return result;
+        // ========================================
+        // 4방향 모두 연결 (0-15): 코너 조합
+        // ========================================
+        if (T && R && L && B) {
+            // 패턴: 4방향 연결, 우측+하단 3코너
+            // □■■
+            // ■ㅇ■
+            // ■■■
+            if (!TL && TR && BL && BR) return 1; //# 완벽
+            // 패턴: 4방향 연결, 좌측+하단 3코너
+            // ■■□
+            // ■ㅇ■
+            // ■■■
+            if (TL && !TR && BL && BR) return 2; //# 완벽
+            // 패턴: 4방향 연결, 하단 양쪽 코너
+            // □■□
+            // ■ㅇ■
+            // ■■■
+            if (!TL && !TR && BL && BR) return 3; //# 완벽
+            // 패턴: 4방향 연결, 상단+좌하단 3코너
+            // ■■■
+            // ■ㅇ■
+            // ■■□
+            if (TL && TR && BL && !BR) return 4; //# 완벽
+            // 패턴: 4방향 연결, 상단+우하단 3코너
+            // 패턴: 4방향 연결, 우상단+좌하단 대각선
+            // □■■
+            // ■ㅇ■
+            // ■■□
+            if (!TL && TR && BL && !BR) return 5; //# 완벽
+            // 패턴: 4방향 연결, 좌측 양쪽 코너
+            // ■■□
+            // ■ㅇ■
+            // ■■□
+            if (TL && !TR && BL && !BR) return 6; //# 완벽
+            // 패턴: 4방향 연결, 좌하단 코너만
+            // □■□
+            // ■ㅇ■
+            // ■■□
+            if (!TL && !TR && BL && !BR) return 7; //# 완벽
+            // ■■■
+            // ■ㅇ■
+            // □■■
+            if (TL && TR && !BL && BR) return 8; //# 완벽
+            // 패턴: 4방향 연결, 우측 양쪽 코너
+            // □■■
+            // ■ㅇ■
+            // □■■
+            if (!TL && TR && !BL && BR) return 9; //# 완벽
+            // 패턴: 4방향 연결, 좌상단+우하단 대각선
+            // ■■□
+            // ■ㅇ■
+            // □■■
+            if (TL && !TR && !BL && BR) return 10; //# 완벽
+            // 패턴: 4방향 연결, 우하단 코너만
+            // □■□
+            // ■ㅇ■
+            // □■■
+            if (!TL && !TR && !BL && BR) return 11; //# 완벽
+            // 패턴: 4방향 연결, 상단 양쪽 코너
+            // ■■■
+            // ■ㅇ■
+            // □■□
+            if (TL && TR && !BL && !BR) return 12; //# 완벽
+            // 패턴: 4방향 연결, 우상단 코너만
+            // □■■
+            // ■ㅇ■
+            // □■□
+            if (!TL && TR && !BL && !BR) return 13; //# 완벽
+            // 패턴: 4방향 연결, 좌상단 코너만
+            // ■■□
+            // ■ㅇ■
+            // □■□
+            if (TL && !TR && !BL && !BR) return 14; //# 완벽
+            // 패턴: 4방향 연결, 코너 없음
+            // □■□
+            // ■ㅇ■
+            // □■□
+            if (!TL && !TR && !BL && !BR) return 15;
+            // 패턴: 4방향 연결, 모든 코너
+            // ■■■
+            // ■ㅇ■
+            // ■■■
+            return 0;
+        }
+        
+        // ========================================
+        // 3방향 연결 패턴
+        // ========================================
+        
+        // 패턴: 위+아래+오른쪽 연결
+        // □■□
+        // □ㅇ■
+        // □■□
+        if (T && R && !L && B) {
+            if (TR && BR) return 16;   // 우측 양쪽 코너 // # 완벽
+            if (!TR && BR) return 17;  // 우하단 코너만
+            if (TR && !BR) return 18;  // 우상단 코너만
+            return 19;                  // 코너 없음
+        }
+        // 패턴: 아래+좌+우 연결
+        // □□□
+        // ■ㅇ■
+        // □■□
+        if (!T && R && L && B) {
+            if (BL && BR) return 20;   // 하단 양쪽 코너 
+            if (BL && !BR) return 21;  // 좌하단 코너만 // # 완벽
+            if (!BL && BR) return 22;  // 우하단 코너만 // # 완벽
+            return 23;                  // 코너 없음
+        }
+        // 패턴: 위+아래+왼쪽 연결
+        // □■□
+        // ■ㅇ□
+        // □■□
+        if (T && !R && L && B) {
+            if (TL && BL) return 24;   // 좌측 양쪽 코너
+            if (TL && !BL) return 25;  // 좌상단 코너만
+            if (!TL && BL) return 26;  // 좌하단 코너만
+            return 27;                   // 코너 없음
+        }
+        // 패턴: 위+왼쪽+오른쪽 연결
+        // □■□
+        // ■ㅇ■
+        // □□□
+        if (T && R && L && !B) {
+            if (TL && TR) return 28;   // 상단 양쪽 코너
+            if (!TL && TR) return 29;  // 우상단 코너만
+            if (TL && !TR) return 30;  // 좌상단 코너만
+            return 31;                   // 코너 없음
+        }
+        
+        // ========================================
+        // 2방향 연결 (반대편)
+        // ========================================
+        
+        // 패턴: 위+아래만 연결 (세로)
+        // □■□
+        // □ㅇ□
+        // □■□
+        if (T && !R && !L && B) {
+            return 32;
+        }
+        
+        // 패턴: 왼쪽+오른쪽만 연결 (가로)
+        // □□□
+        // ■ㅇ■
+        // □□□
+        if (!T && R && L && !B) {
+            return 33;
+        }
+        
+        // ========================================
+        // 2방향 연결 (인접)
+        // ========================================
+        
+        // 패턴: 아래+오른쪽 연결
+        // □□□
+        // □ㅇ■
+        // □■□
+        if (!T && R && !L && B) {
+            if (BR) return 34;  // 우하단 코너
+            return 35;            // 코너 없음
+        }
+        // 패턴: 아래+왼쪽 연결
+        // □□□
+        // ■ㅇ□
+        // □■□
+        if (!T && !R && L && B) {
+            if (BL) return 36;  // 좌하단 코너
+            return 37;            // 코너 없음
+        }
+        // 패턴: 위+왼쪽 연결
+        // □■□
+        // ■ㅇ□
+        // □□□
+        if (T && !R && L && !B) {
+            if (TL) return 38;  // 좌상단 코너
+            return 39;            // 코너 없음
+        }
+        
+        // 패턴: 위+오른쪽 연결
+        // □■□
+        // □ㅇ■
+        // □□□
+        if (T && R && !L && !B) {
+            if (TR) return 40;  // 우상단 코너
+            return 41;           // 코너 없음
+        }
+        
+        // ========================================
+        // 1방향만 연결
+        // ========================================
+
+        // 패턴: 아래만 연결
+        // □□□
+        // □ㅇ□
+        // □■□
+        if (!T && !R && !L && B) {
+            return 42;
+        }
+        // 패턴: 오른쪽만 연결
+        // □□□
+        // □ㅇ■
+        // □□□
+        if (!T && R && !L && !B) {
+            return 43;
+        }
+        // 패턴: 위만 연결
+        // □■□
+        // □ㅇ□
+        // □□□
+        if (T && !R && !L && !B) {
+            return 44;
+        }
+        // 패턴: 왼쪽만 연결
+        // □□□
+        // ■ㅇ□
+        // □□□
+        if (!T && !R && L && !B) {
+            return 45;
+        }
+        // 기본값 (고립)
+        // 패턴: 고립 타일 (아무것도 연결 안됨)
+        // □□□
+        // □ㅇ□
+        // □□□
+        return 47;
     }
 
     // 오토타일 전파: 주변 8칸 재계산
@@ -434,56 +679,93 @@ class MapManager {
 
         // 비교를 위해 타일 ID를 Base ID로 변환
         const targetBaseId = this.getAutotileBaseId(tileId);
-        console.log(`    [determineAutoLayer] (${x}, ${y}) - 타일ID: ${tileId}, BaseID: ${targetBaseId}, 탭: ${tab}`);
 
         // A그룹: Layer 0-1 (하층)
         if (tab === 'A') {
+            // A1 타일인 경우 메타데이터에 따라 레이어 결정
+            if (this.loader.isTileA1(tileId)) {
+                const tileIndex = Math.floor((tileId - this.loader.TILE_ID_A1) / 48);
+                const row = Math.floor(tileIndex / 8);
+                const col = tileIndex % 8;
+                // console.log(row,col)
+                
+                if (row < 2 && col < 8) {
+                    const targetLayer = this.A1_LAYER_MAP[row][col];
+                    
+                    // 땅(Layer 0)을 배치하는 경우, 위의 모든 레이어 삭제
+                    if (targetLayer === 0) {
+                        const index1 = (1 * width * height) + (y * width) + x;
+                        const index2 = (2 * width * height) + (y * width) + x;
+                        const index3 = (3 * width * height) + (y * width) + x;
+                        const index4 = (4 * width * height) + (y * width) + x;
+                        main.map.data[index1] = 0;
+                        main.map.data[index2] = 0;
+                        main.map.data[index3] = 0;
+                        main.map.data[index4] = 0;
+                    }
+                    
+                    return targetLayer;
+                }
+            }
+            
+            // A1이 아닌 A 타일의 기존 로직
             const layer0Index = (0 * width * height) + (y * width) + x;
             const layer0Tile = main.map.data[layer0Index] || 0;
             const layer0BaseId = this.getAutotileBaseId(layer0Tile);
-            console.log(`    [determineAutoLayer] Layer 0 확인 - 기존타일: ${layer0Tile}, BaseID: ${layer0BaseId}`);
             
             // Layer 0이 비어있거나 같은 종류의 타일이면 Layer 0에 배치 (중복 쌓기 방지)
             if (layer0Tile === 0 || layer0BaseId === targetBaseId) {
-                console.log(`    [determineAutoLayer] 결정: Layer 0 (비어있음 또는 같은 타입)`);
                 return 0;
             }
             // Layer 0에 다른 종류의 타일이 있으면 Layer 1에 배치
-            console.log(`    [determineAutoLayer] 결정: Layer 1 (Layer 0 점유됨)`);
             return 1;
         }
         
         // B~E그룹: Layer 2-3 (상층)
         const layer2Index = (2 * width * height) + (y * width) + x;
         const layer2Tile = main.map.data[layer2Index] || 0;
-        console.log(`    [determineAutoLayer] Layer 2 확인 - 기존타일: ${layer2Tile}`);
         
         // Layer 2가 비어있거나 같은 타일이면 Layer 2에 배치
         if (layer2Tile === 0 || layer2Tile === tileId) {
-            console.log(`    [determineAutoLayer] 결정: Layer 2 (비어있음 또는 같은 타일)`);
             return 2;
         }
         // Layer 2에 다른 타일이 있으면 Layer 3에 배치
-        console.log(`    [determineAutoLayer] 결정: Layer 3 (Layer 2 점유됨)`);
         return 3;
     }
 
     calculateTileId(selectedTile, offsetX, offsetY) {
         let baseId = 0;
         const tab = selectedTile.tab;
+        const x = selectedTile.x + offsetX;
+        const y = selectedTile.y + offsetY;
+
+        if(!main["test"]){
+            main["test"] = 0
+        }
 
         if (tab === 'A') {
             const aSection = selectedTile.aSection;
             if (!aSection) return 0;
-
+            
             const section = aSection.section;
             const localY = aSection.localY;
             const tileX = selectedTile.x + offsetX;
 
             // A1: 오토타일 (2048 + 타일 인덱스 * 48)
             if (section === 'A1') {
-                const tileIndex = localY * 8 + tileX;
-                return 2048 + tileIndex * 48; // 각 오토타일은 48개 변형
+                const aMap = [
+                    // A1:
+                    [2048,2432, 2192, 2576,2240,2384,2624,2768],
+                    [2100],
+                    // A2:
+                    [2816,2864, 2912,2976,3016,3064,3112,3160],
+                    [3208,3256, 3304,3368,3408,3456,3504,3552],
+                    [3600,3648, 3696,3760,3800,3848,3896,3944],
+                    [3992,4040, 4088,4152,4192,4240,4288,4336],
+                    // // 48씩 8길이
+                    // [4264,4648, 4416, 4800,4456,4600,4840,4984],
+                ]
+                return aMap[y][x];
             }
             // A2: 오토타일 (2816 + 타일 인덱스 * 48)
             else if (section === 'A2') {
@@ -754,31 +1036,26 @@ class MapLoader {
         let isTable = false;
 
         if (this.isTileA1(tileId)) {
-            // this.animationFrame
-            const waterSurfaceIndex = 0;
+            // A1 타일 처리: 타일 위치에 따라 타입 결정
             tileType = 'A1';
-            if (kind === 0) {
-                bx = waterSurfaceIndex * 2;
-                by = 0;
-            } else if (kind === 1) {
-                bx = waterSurfaceIndex * 2;
-                by = 3;
-            } else if (kind === 2) {
-                bx = 6;
-                by = 0;
-            } else if (kind === 3) {
-                bx = 6;
-                by = 3;
-            } else {
-                bx = Math.floor(tx / 4) * 8;
-                by = ty * 6 + (Math.floor(tx / 2) % 2) * 3;
-                if (kind % 2 === 0) {
-                    bx += waterSurfaceIndex * 2;
-                } else {
-                    bx += 6;
-                    autotileTable = this.WATERFALL_AUTOTILE_TABLE;
-                    by += this.animationFrame % 3;
-                }
+            const row = Math.floor(kind / 8);
+            const col = kind % 8;
+            
+            
+            const tileTypeStr = (row < 2 && col < 8) ? main.mapManager.A1_AUTOTILE_TYPE_MAP[row][col] : 'floor';
+            
+            // 타일셋 상의 위치 계산
+            bx = col * 2;
+            by = row * 3;
+            
+            // 오토타일 타입에 따라 테이블 선택
+            if (tileTypeStr === 'fixed') {
+                // 고정 타일은 항상 같은 모양 (패턴 0)
+                autotileTable = this.FLOOR_AUTOTILE_TABLE;
+            } else if (tileTypeStr === 'waterfall') {
+                autotileTable = this.WATERFALL_AUTOTILE_TABLE;
+            } else { // 'floor'
+                autotileTable = this.FLOOR_AUTOTILE_TABLE;
             }
         } else if (this.isTileA2(tileId)) {
             tileType = 'A2';
@@ -844,6 +1121,9 @@ class MapLoader {
         const dy = y * this.tileSize
 
         const tile = this.getNormalTile(tileId)
+        if(!tile.img){
+            return
+        }
 
         this.ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, dx, dy, 48, 48);
     }
