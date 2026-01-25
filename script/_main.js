@@ -2140,7 +2140,6 @@ class EditorUI {
     
     // 컨텍스트 메뉴 닫기
     closeContextMenu() {
-        console.log("close")
         const menu = document.getElementById('map-context-menu');
         if (menu) {
             menu.remove();

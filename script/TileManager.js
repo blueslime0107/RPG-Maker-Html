@@ -6,20 +6,18 @@ class MapManager {
         this.tileset = null;
         this.tilesets = null;
         this.loader = new MapLoader();
-        
+
         // A1 타일셋 메타데이터 (8x2 배열)
         // 레이어: 0=땅(Ground), 1=바닥(Floor)
         this.A1_LAYER_MAP = [
-            [0, null,null, 1, 0, null, null, 0],
-            [0, null,null, 1, 0, null, null, 0],    
-            [0, null,null, 1, 0, null, null, 0],
-            [0, null,null, 1, 0, null, null, 0],  
+            [0, 1, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 1],
         ];
-        
+
         // 오토타일 타입: 'floor'=바닥, 'wall'=벽, 'waterfall'=폭포, 'fixed'=고정
         this.A1_AUTOTILE_TYPE_MAP = [
-            ['floor', 'floor', 'fixed', 'fixed', 'floor', 'waterfall', 'floor', 'waterfall'], // 첫 번째 행
-            ['floor', 'waterfall', 'floor', 'fixed', 'floor', 'fixed', 'floor', 'fixed']  // 두 번째 행
+            ['floor', 'floor', 'floor', 'fixed', 'floor', 'floor', 'floor', 'floor'], // 첫 번째 행
+            ['floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor']  // 두 번째 행
         ];
     }
 
@@ -57,7 +55,7 @@ class MapManager {
 
 
     setTile(mapX, mapY, layerMode, selectedTile) {
-        
+
         if (!main.map) return;
 
         for (let h = 0; h < selectedTile.h; h++) {
@@ -68,7 +66,7 @@ class MapManager {
                 if (this.isOutofMap(targetX, targetY)) continue;
 
                 const tileId = this.calculateTileId(selectedTile, w, h);
-                
+
                 // R 탭(리전)은 항상 Layer 5에 배치
                 let layerIdx;
                 if (selectedTile.tab === 'R') {
@@ -132,7 +130,7 @@ class MapManager {
             const tileIndex = Math.floor((tileId - this.loader.TILE_ID_A1) / 48);
             const row = Math.floor(tileIndex / 8);
             const col = tileIndex % 8;
-            
+
             if (row < 2 && col < 8) {
                 return this.A1_AUTOTILE_TYPE_MAP[row][col];
             }
@@ -153,16 +151,16 @@ class MapManager {
         const width = main.map.width;
         const height = main.map.height;
         const baseId = this.getAutotileBaseId(baseTileId);
-        
+
         // 타일 타입 확인 및 적절한 autotile 테이블 선택
         let tileType = 'A1';
         let autotileType = '';
         let autotileTable = this.loader.FLOOR_AUTOTILE_TABLE;
-        
+
         if (this.loader.isTileA1(baseId)) {
             tileType = 'A1';
             autotileType = this.getA1AutotileType(baseId);
-            
+
             // A1은 타입에 따라 테이블 선택 (MapLoader.drawAutotile과 동일)
             if (autotileType === 'waterfall') {
                 autotileTable = this.loader.WATERFALL_AUTOTILE_TABLE;
@@ -192,8 +190,8 @@ class MapManager {
         // 8방향 연결 상태 확인
         const directions = [
             [-1, -1], [0, -1], [1, -1],  // 위쪽 3칸
-            [-1,  0],          [1,  0],   // 좌우
-            [-1,  1], [0,  1], [1,  1]    // 아래쪽 3칸
+            [-1, 0], [1, 0],   // 좌우
+            [-1, 1], [0, 1], [1, 1]    // 아래쪽 3칸
         ];
 
         let pattern = 0;
@@ -219,7 +217,7 @@ class MapManager {
 
         // 비트 패턴을 해당 테이블의 인덱스로 변환
         const patternIndex = this.bitPatternToIndex(pattern, autotileTable);
-        
+
         return baseId + patternIndex;
     }
 
@@ -229,17 +227,17 @@ class MapManager {
     bitPatternToIndex(bitPattern, autotileTable) {
         // 비트 패턴 분해
         const TL = (bitPattern >> 0) & 1;  // Top-Left (좌상단 코너)
-        const T  = (bitPattern >> 1) & 1;  // Top (위)
+        const T = (bitPattern >> 1) & 1;  // Top (위)
         const TR = (bitPattern >> 2) & 1;  // Top-Right (우상단 코너)
-        const L  = (bitPattern >> 3) & 1;  // Left (왼쪽)
-        const R  = (bitPattern >> 4) & 1;  // Right (오른쪽)
+        const L = (bitPattern >> 3) & 1;  // Left (왼쪽)
+        const R = (bitPattern >> 4) & 1;  // Right (오른쪽)
         const BL = (bitPattern >> 5) & 1;  // Bottom-Left (좌하단 코너)
-        const B  = (bitPattern >> 6) & 1;  // Bottom (아래)
+        const B = (bitPattern >> 6) & 1;  // Bottom (아래)
         const BR = (bitPattern >> 7) & 1;  // Bottom-Right (우하단 코너)
-        
+
         // RPG Maker MZ 표준 인덱스 계산
         let index = 0;
-        
+
         // WALL 타입 테이블 (16개) - 벽 타일
         // RPG Maker MZ 공식 알고리즘: L=1, R=2, T=4, B=8
         if (autotileTable.length === 16) {
@@ -258,7 +256,7 @@ class MapManager {
             // □ㅇ□
             // □■□
             if (!T && !R && B && !L) return 7;
-            
+
             // 패턴: 왼쪽만 연결
             // □□□
             // ■ㅇ□
@@ -278,12 +276,12 @@ class MapManager {
             // ■ㅇ■
             // ■■■
             if (T && R && B && L) return 0;
-            
-            
-            
-            
-            
-            
+
+
+
+
+
+
             // 패턴: 위+오른쪽+아래 연결
             // □■□
             // □ㅇ■
@@ -303,26 +301,26 @@ class MapManager {
             // □■□
             // ■ㅇ□
             // □■□
-            if (T && !R && B && L) return 4; 
+            if (T && !R && B && L) return 4;
             // 패턴: 위+아래만 연결
             // □■□
             // □ㅇ□
             // □■□
             if (T && !R && B && !L) return 5;
-            
+
             // 패턴: 왼쪽+아래 연결
             // □□□
             // ■ㅇ□
             // □■□
             if (!T && !R && B && L) return 6; // # 완벽
-            
-            
+
+
             // 패턴: 위+오른쪽 연결
             // □■□
             // □ㅇ■
             // □□□
             if (T && R && !B && !L) return 9; // # 완벽
-            
+
             // 패턴: 위+왼쪽+오른쪽 연결
             // □■□
             // ■ㅇ■
@@ -333,17 +331,17 @@ class MapManager {
             // ■ㅇ□
             // □□□
             if (T && !R && !B && L) return 12; // # 완벽
-            
-            
-            
-            
+
+
+
+
             // 패턴: 고립 (아무것도 연결 안됨)
             // □□□
             // □ㅇ□
             // □□□
             return 15;
         }
-        
+
         // WATERFALL 타입 테이블 (4개) - 폭포 타일
         if (autotileTable.length === 4) {
             // 폭포 타입: 좌우만 고려
@@ -351,10 +349,10 @@ class MapManager {
             if (R) index |= 0x02;
             return index;
         }
-        
+
         // FLOOR 타입 테이블 (48개) - 바닥 타일
-         
-        
+
+
         // ========================================
         // 4방향 모두 연결 (0-15): 코너 조합
         // ========================================
@@ -440,11 +438,11 @@ class MapManager {
             // ■■■
             return 0;
         }
-        
+
         // ========================================
         // 3방향 연결 패턴
         // ========================================
-        
+
         // 패턴: 위+아래+오른쪽 연결
         // □■□
         // □ㅇ■
@@ -485,11 +483,11 @@ class MapManager {
             if (TL && !TR) return 30;  // 좌상단 코너만
             return 31;                   // 코너 없음
         }
-        
+
         // ========================================
         // 2방향 연결 (반대편)
         // ========================================
-        
+
         // 패턴: 위+아래만 연결 (세로)
         // □■□
         // □ㅇ□
@@ -497,7 +495,7 @@ class MapManager {
         if (T && !R && !L && B) {
             return 32;
         }
-        
+
         // 패턴: 왼쪽+오른쪽만 연결 (가로)
         // □□□
         // ■ㅇ■
@@ -505,11 +503,11 @@ class MapManager {
         if (!T && R && L && !B) {
             return 33;
         }
-        
+
         // ========================================
         // 2방향 연결 (인접)
         // ========================================
-        
+
         // 패턴: 아래+오른쪽 연결
         // □□□
         // □ㅇ■
@@ -534,7 +532,7 @@ class MapManager {
             if (TL) return 38;  // 좌상단 코너
             return 39;            // 코너 없음
         }
-        
+
         // 패턴: 위+오른쪽 연결
         // □■□
         // □ㅇ■
@@ -543,7 +541,7 @@ class MapManager {
             if (TR) return 40;  // 우상단 코너
             return 41;           // 코너 없음
         }
-        
+
         // ========================================
         // 1방향만 연결
         // ========================================
@@ -591,8 +589,8 @@ class MapManager {
 
         const directions = [
             [-1, -1], [0, -1], [1, -1],
-            [-1,  0],          [1,  0],
-            [-1,  1], [0,  1], [1,  1]
+            [-1, 0], [1, 0],
+            [-1, 1], [0, 1], [1, 1]
         ];
 
         for (const [dx, dy] of directions) {
@@ -680,18 +678,18 @@ class MapManager {
         // A그룹: Layer 0-1 (하층)  
         if (tab === 'A') {
             let targetLayer = 0
-            if(!this.loader.isTileA5(tileId)){
+            if (!this.loader.isTileA5(tileId)) {
                 // A1 타일인 경우 메타데이터에 따라 레이어 결정
                 const tileIndex = Math.floor((tileId - this.loader.TILE_ID_A1) / 48);
                 const row = Math.floor(tileIndex / 8);
                 const col = tileIndex % 8;
-                if(this.loader.isTileA1(tileId)){
+                if (this.loader.isTileA1(tileId)) {
                     targetLayer = this.A1_LAYER_MAP[row][col];
                 }
-                if(this.loader.isTileA2(tileId) && col >=4){
+                if (this.loader.isTileA2(tileId) && col >= 4) {
                     targetLayer = 1;
                 }
-            }else{
+            } else {
                 targetLayer = 1;
             }
             if (targetLayer === 0) {
@@ -702,10 +700,10 @@ class MapManager {
             this.setMapData(x, y, 4, 0);
             return targetLayer
         }
-        
+
         // B~E그룹: Layer 2-3 (상층)
-        const layer3Tile = this.mapData(x,y,3);
-        
+        const layer3Tile = this.mapData(x, y, 3);
+
         // Layer 2가 비어있거나 같은 타일이면 Layer 2에 배치
         if (layer3Tile != 0) {
             this.setMapData(x, y, 2, layer3Tile);
@@ -721,14 +719,14 @@ class MapManager {
         const x = selectedTile.x + offsetX;
         const y = selectedTile.y + offsetY;
 
-        if(!main["test"]){
+        if (!main["test"]) {
             main["test"] = 0
         }
 
         if (tab === 'A') {
             const aSection = selectedTile.aSection;
             if (!aSection) return 0;
-            
+
             const section = aSection.section;
             const localY = aSection.localY;
             const tileX = selectedTile.x + offsetX;
@@ -737,8 +735,8 @@ class MapManager {
             if (section === 'A1') {
                 const aMap = [
                     // A1:
-                    [2048,2192,2240,2384,2432,2576,2624,2768],
-                    []
+                    [2048, 2096, 2144, 2192, 2240, 2288, 2336, 2384],
+                    [2432, 2480, 2528, 2576, 2624, 2672, 2720, 2768]
                 ]
                 return aMap[y][x];
             }
@@ -784,7 +782,7 @@ class MapLoader {
         this.canvas = document.getElementById('map-canvas');
         this.ctx = this.canvas.getContext('2d');
         this.tileSize = 48; // MZ 기본 타일 크기
-        
+
         // 레이어별 캔버스 시스템
         this.layerCanvases = [];
         this.layerContexts = [];
@@ -906,13 +904,13 @@ class MapLoader {
         // 1. 캔버스 크기 설정 (타일 개수 * 48px)
         this.canvas.width = this.mapData.width * this.tileSize;
         this.canvas.height = this.mapData.height * this.tileSize;
-        
+
         // 2. 레이어별 캔버스 생성 (레이어 0~3, 그림자 레이어 포함)
         this.createLayerCanvases();
 
         this.render();
     }
-    
+
     createLayerCanvases() {
         // 기존 캔버스 정리
         this.layerCanvases.forEach(canvas => {
@@ -922,7 +920,7 @@ class MapLoader {
         });
         this.layerCanvases = [];
         this.layerContexts = [];
-        
+
         // 레이어 0~3 + 그림자 레이어 (총 5개)
         for (let i = 0; i < 5; i++) {
             const layerCanvas = document.createElement('canvas');
@@ -933,12 +931,12 @@ class MapLoader {
             layerCanvas.style.top = '0';
             layerCanvas.style.pointerEvents = 'none';
             layerCanvas.style.zIndex = (5 + i).toString(); // 5-9: map-overlay(10), event-overlay(100) 아래
-            
+
             this.layerCanvases.push(layerCanvas);
             this.layerContexts.push(layerCanvas.getContext('2d'));
         }
     }
-    
+
     setHighlightMode(mode) {
         this.highlightMode = mode;
         this.render();
@@ -946,10 +944,10 @@ class MapLoader {
 
     render() {
         if (!this.mapData) return;
-        
+
         // 기존 메인 캔버스는 항상 깨끗하게
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
+
         // 자동 모드: 모든 레이어를 메인 캔버스에 정상 렌더링
         if (this.highlightMode === 'auto') {
             this.renderAllLayersNormal();
@@ -964,7 +962,7 @@ class MapLoader {
             this.renderLayersSeparately();
         }
     }
-    
+
     renderAllLayersNormal() {
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
@@ -986,19 +984,19 @@ class MapLoader {
             }
         }
     }
-    
+
     renderLayersSeparately() {
         const selectedLayer = parseInt(this.highlightMode);
-        
+
         // 모든 레이어 캔버스 초기화
         this.layerContexts.forEach(ctx => {
             ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         });
-        
+
         // 레이어별로 렌더링
         for (let layer = 0; layer < 4; layer++) {
             const ctx = this.layerContexts[layer];
-            
+
             // 레이어별 강조 효과 설정
             if (layer === selectedLayer) {
                 // 선택된 레이어: 정상 표시
@@ -1013,7 +1011,7 @@ class MapLoader {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.globalAlpha = 1.0;
             }
-            
+
             // 레이어 타일 그리기
             for (let y = 0; y < this.height; y++) {
                 for (let x = 0; x < this.width; x++) {
@@ -1023,7 +1021,7 @@ class MapLoader {
                     }
                 }
             }
-            
+
             // 선택되지 않은 레이어에 파란색 오버레이 적용
             if (layer !== selectedLayer) {
                 ctx.globalCompositeOperation = 'source-atop';
@@ -1036,12 +1034,12 @@ class MapLoader {
                 }
                 ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             }
-            
+
             // 컨텍스트 설정 초기화
             ctx.globalCompositeOperation = 'source-over';
             ctx.globalAlpha = 1.0;
         }
-        
+
         // 그림자 레이어 렌더링 (레이어 4)
         const shadowCtx = this.layerContexts[4];
         for (let y = 0; y < this.height; y++) {
@@ -1049,7 +1047,7 @@ class MapLoader {
                 const shadowBits = this.readMapData(x, y, 4);
                 const tileId1 = this.readMapData(x, y, 1);
                 const upperTileId1 = this.readMapData(x, y - 1, 1);
-                
+
                 this.drawShadowToContext(shadowCtx, shadowBits, x, y);
                 if (this.isTableTile(upperTileId1) && !this.isTableTile(tileId1)) {
                     const tileId0 = this.readMapData(x, y, 0);
@@ -1059,7 +1057,7 @@ class MapLoader {
                 }
             }
         }
-        
+
         // 레이어 캔버스들을 DOM에 추가 (아직 없으면)
         const container = this.canvas.parentNode;
         this.layerCanvases.forEach((canvas, index) => {
@@ -1150,18 +1148,18 @@ class MapLoader {
         let isTable = false;
 
         if (this.isTileA1(tileId)) {
+
             // A1 타일 처리: 타일 위치에 따라 타입 결정
             tileType = 'A1';
             const row = Math.floor(kind / 8);
             const col = kind % 8;
-            
-            
+
+
             const tileTypeStr = (row < 2 && col < 8) ? main.mapManager.A1_AUTOTILE_TYPE_MAP[row][col] : 'floor';
-            
             // 타일셋 상의 위치 계산
-            bx = col * 2;
-            by = row * 3;
-            
+            bx = [0, 6, 8, 14][col % 4];
+            by = [0, 3, 6, 9][Math.floor(col / 4) + (row * 2)];
+
             // 오토타일 타입에 따라 테이블 선택
             if (tileTypeStr === 'fixed') {
                 // 고정 타일은 항상 같은 모양 (패턴 0)
@@ -1214,7 +1212,7 @@ class MapLoader {
         }
     }
 
-    
+
     getNormalTile(tileId) {
         const s = this.tileSize;
         const sx = ((Math.floor(tileId / 128) % 2) * 8 + (tileId % 8)) * s;
@@ -1227,7 +1225,7 @@ class MapLoader {
         else if (this.isTileE(tileId)) { tileType = 'E' }
         const img = this.images[tileType];
 
-        return {img,sx,sy}
+        return { img, sx, sy }
     }
 
     drawNormal(tileId, x, y) {
@@ -1235,7 +1233,7 @@ class MapLoader {
         const dy = y * this.tileSize
 
         const tile = this.getNormalTile(tileId)
-        if(!tile.img){
+        if (!tile.img) {
             return
         }
 
@@ -1283,7 +1281,7 @@ class MapLoader {
             }
         }
     };
-    
+
     // 레이어별 캔버스에 그리기 위한 메서드들
     drawTileToContext(ctx, tileId, x, y) {
         if (this.isAutotile(tileId)) {
@@ -1292,7 +1290,7 @@ class MapLoader {
             this.drawNormalToContext(ctx, tileId, x, y);
         }
     }
-    
+
     drawAutotileToContext(ctx, tileId, x, y) {
         const dx = x * this.tileSize;
         const dy = y * this.tileSize;
@@ -1363,7 +1361,7 @@ class MapLoader {
             }
         }
     }
-    
+
     drawNormalToContext(ctx, tileId, x, y) {
         const dx = x * this.tileSize;
         const dy = y * this.tileSize;
@@ -1375,7 +1373,7 @@ class MapLoader {
 
         ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, dx, dy, 48, 48);
     }
-    
+
     drawShadowToContext(ctx, shadowBits, x, y) {
         if (shadowBits & 0x0f) {
             const w1 = this.tileSize / 2;
@@ -1390,7 +1388,7 @@ class MapLoader {
             }
         }
     }
-    
+
     drawTableEdgeToContext(ctx, tileId, x, y) {
         const dx = x * this.tileSize;
         const dy = y * this.tileSize;
