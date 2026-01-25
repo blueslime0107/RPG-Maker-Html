@@ -1,5 +1,5 @@
 //=============================================================================
-// rmmz_objects.js v1.9.0
+// rmmz_objects.js v1.1.1
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -88,10 +88,6 @@ Game_Temp.prototype.reserveCommonEvent = function(commonEventId) {
 
 Game_Temp.prototype.retrieveCommonEvent = function() {
     return $dataCommonEvents[this._commonEventQueue.shift()];
-};
-
-Game_Temp.prototype.clearCommonEventReservation = function() {
-    this._commonEventQueue.length = 0;
 };
 
 Game_Temp.prototype.isCommonEventReserved = function() {
@@ -222,10 +218,6 @@ Game_System.prototype.isSideView = function() {
 
 Game_System.prototype.isAutosaveEnabled = function() {
     return $dataSystem.optAutosave;
-};
-
-Game_System.prototype.isMessageSkipEnabled = function() {
-    return $dataSystem.optMessageSkip;
 };
 
 Game_System.prototype.isSaveEnabled = function() {
@@ -413,10 +405,6 @@ Game_System.prototype.windowPadding = function() {
     return 12;
 };
 
-Game_System.prototype.windowOpacity = function() {
-    return $dataSystem.advanced.windowOpacity;
-};
-
 //-----------------------------------------------------------------------------
 // Game_Timer
 //
@@ -455,10 +443,6 @@ Game_Timer.prototype.isWorking = function() {
 
 Game_Timer.prototype.seconds = function() {
     return Math.floor(this._frames / 60);
-};
-
-Game_Timer.prototype.frames = function() {
-    return this._frames;
 };
 
 Game_Timer.prototype.onExpire = function() {
@@ -901,11 +885,7 @@ Game_Screen.prototype.eraseBattlePictures = function() {
 };
 
 Game_Screen.prototype.maxPictures = function() {
-    if ("picturesUpperLimit" in $dataSystem.advanced) {
-        return $dataSystem.advanced.picturesUpperLimit;
-    } else {
-        return 100;
-    }
+    return 100;
 };
 
 Game_Screen.prototype.startFadeOut = function(duration) {
@@ -3816,9 +3796,7 @@ Game_Battler.prototype.forceAction = function(skillId, targetIndex) {
     } else {
         action.setTarget(targetIndex);
     }
-    if (action.item()) {
-        this._actions.push(action);
-    }
+    this._actions.push(action);
 };
 
 Game_Battler.prototype.useItem = function(item) {
@@ -5358,9 +5336,9 @@ Game_Unit.prototype.isAllDead = function() {
     return this.aliveMembers().length === 0;
 };
 
-Game_Unit.prototype.substituteBattler = function(target) {
+Game_Unit.prototype.substituteBattler = function() {
     for (const member of this.members()) {
-        if (member.isSubstitute() && member !== target) {
+        if (member.isSubstitute()) {
             return member;
         }
     }
@@ -5440,15 +5418,9 @@ Game_Party.prototype.allMembers = function() {
 };
 
 Game_Party.prototype.battleMembers = function() {
-    return this.allBattleMembers().filter(actor => actor.isAppeared());
-};
-
-Game_Party.prototype.hiddenBattleMembers = function() {
-    return this.allBattleMembers().filter(actor => actor.isHidden());
-};
-
-Game_Party.prototype.allBattleMembers = function() {
-    return this.allMembers().slice(0, this.maxBattleMembers());
+    return this.allMembers()
+        .slice(0, this.maxBattleMembers())
+        .filter(actor => actor.isAppeared());
 };
 
 Game_Party.prototype.maxBattleMembers = function() {
@@ -5688,10 +5660,6 @@ Game_Party.prototype.isAllDead = function() {
     } else {
         return false;
     }
-};
-
-Game_Party.prototype.isEscaped = function() {
-    return this.isAllDead() && this.hiddenBattleMembers().length > 0;
 };
 
 Game_Party.prototype.onPlayerWalk = function() {
@@ -6121,19 +6089,11 @@ Game_Map.prototype.isEventRunning = function() {
 };
 
 Game_Map.prototype.tileWidth = function() {
-    if ("tileSize" in $dataSystem) {
-        return $dataSystem.tileSize;
-    } else {
-        return 48;
-    }
+    return 48;
 };
 
 Game_Map.prototype.tileHeight = function() {
-    return this.tileWidth();
-};
-
-Game_Map.prototype.bushDepth = function() {
-    return this.tileHeight() / 4;
+    return 48;
 };
 
 Game_Map.prototype.mapId = function() {
@@ -7313,7 +7273,7 @@ Game_CharacterBase.prototype.refreshBushDepth = function() {
         !this.isJumping()
     ) {
         if (!this.isMoving()) {
-            this._bushDepth = $gameMap.bushDepth();
+            this._bushDepth = 12;
         }
     } else {
         this._bushDepth = 0;
@@ -7885,7 +7845,6 @@ Game_Character.prototype.processRouteEnd = function() {
     } else if (this._moveRouteForcing) {
         this._moveRouteForcing = false;
         this.restoreMoveRoute();
-        this.setMovementSuccess(false);
     }
 };
 
@@ -9917,12 +9876,6 @@ Game_Interpreter.prototype.command108 = function(params) {
     return true;
 };
 
-// Skip
-Game_Interpreter.prototype.command109 = function() {
-    this.skipBranch();
-    return true;
-};
-
 // Conditional Branch
 Game_Interpreter.prototype.command111 = function(params) {
     let result = false;
@@ -9968,11 +9921,10 @@ Game_Interpreter.prototype.command111 = function(params) {
             break;
         case 3: // Timer
             if ($gameTimer.isWorking()) {
-                const sec = $gameTimer.frames() / 60;
                 if (params[2] === 0) {
-                    result = sec >= params[1];
+                    result = $gameTimer.seconds() >= params[1];
                 } else {
-                    result = sec <= params[1];
+                    result = $gameTimer.seconds() <= params[1];
                 }
             }
             break;
@@ -11319,8 +11271,7 @@ Game_Interpreter.prototype.pluginCommand = function() {
 
 // Plugin Command
 Game_Interpreter.prototype.command357 = function(params) {
-    const pluginName = Utils.extractFileName(params[0]);
-    PluginManager.callCommand(this, pluginName, params[1], params[3]);
+    PluginManager.callCommand(this, params[0], params[1], params[3]);
     return true;
 };
 

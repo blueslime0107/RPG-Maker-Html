@@ -1,5 +1,5 @@
 //=============================================================================
-// rmmz_sprites.js v1.9.0
+// rmmz_sprites.js v1.1.1
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -726,7 +726,6 @@ Sprite_Actor.prototype.setBattler = function(battler) {
             this.setActorHome(battler.index());
         } else {
             this._mainSprite.bitmap = null;
-            this._battlerName = "";
         }
         this.startEntryMotion();
         this._stateSprite.setup(battler);
@@ -938,7 +937,7 @@ Sprite_Enemy.prototype.initMembers = function() {
     Sprite_Battler.prototype.initMembers.call(this);
     this._enemy = null;
     this._appeared = false;
-    this._battlerName = null;
+    this._battlerName = "";
     this._battlerHue = 0;
     this._effectType = null;
     this._effectDuration = 0;
@@ -1218,6 +1217,7 @@ Sprite_Animation.prototype.initMembers = function() {
     this._flashColor = [0, 0, 0, 0];
     this._flashDuration = 0;
     this._viewportSize = 4096;
+    this._originalViewport = null;
     this.z = 8;
 };
 
@@ -1285,9 +1285,9 @@ Sprite_Animation.prototype.canStart = function() {
 };
 
 Sprite_Animation.prototype.shouldWaitForPrevious = function() {
-    // [Note] Older versions of Effekseer were very heavy on some mobile
-    //   devices. We don't need this anymore.
-    return false;
+    // [Note] Effekseer is very heavy on some mobile devices, so we don't
+    //   display many effects at the same time.
+    return Utils.isMobileDevice();
 };
 
 Sprite_Animation.prototype.updateEffectGeometry = function() {
@@ -1361,6 +1361,7 @@ Sprite_Animation.prototype.setRotation = function(x, y, z) {
 Sprite_Animation.prototype._render = function(renderer) {
     if (this._targets.length > 0 && this._handle && this._handle.exists) {
         this.onBeforeRender(renderer);
+        this.saveViewport(renderer);
         this.setProjectionMatrix(renderer);
         this.setCameraMatrix(renderer);
         this.setViewport(renderer);
@@ -1430,8 +1431,16 @@ Sprite_Animation.prototype.targetSpritePosition = function(sprite) {
     return sprite.worldTransform.apply(point);
 };
 
+Sprite_Animation.prototype.saveViewport = function(renderer) {
+    // [Note] Retrieving the viewport is somewhat heavy.
+    if (!this._originalViewport) {
+        this._originalViewport = renderer.gl.getParameter(renderer.gl.VIEWPORT);
+    }
+};
+
 Sprite_Animation.prototype.resetViewport = function(renderer) {
-    renderer.gl.viewport(0, 0, renderer.view.width, renderer.view.height);
+    const vp = this._originalViewport;
+    renderer.gl.viewport(vp[0], vp[1], vp[2], vp[3]);
 };
 
 Sprite_Animation.prototype.onBeforeRender = function(renderer) {
@@ -1440,6 +1449,7 @@ Sprite_Animation.prototype.onBeforeRender = function(renderer) {
 };
 
 Sprite_Animation.prototype.onAfterRender = function(renderer) {
+    renderer.texture.contextChange();
     renderer.texture.reset();
     renderer.geometry.reset();
     renderer.state.reset();
@@ -2136,10 +2146,6 @@ Sprite_Gauge.prototype.bitmapWidth = function() {
 };
 
 Sprite_Gauge.prototype.bitmapHeight = function() {
-    return 32;
-};
-
-Sprite_Gauge.prototype.textHeight = function() {
     return 24;
 };
 
@@ -2386,7 +2392,7 @@ Sprite_Gauge.prototype.redraw = function() {
 
 Sprite_Gauge.prototype.drawGauge = function() {
     const gaugeX = this.gaugeX();
-    const gaugeY = this.textHeight() - this.gaugeHeight();
+    const gaugeY = this.bitmapHeight() - this.gaugeHeight();
     const gaugewidth = this.bitmapWidth() - gaugeX;
     const gaugeHeight = this.gaugeHeight();
     this.drawGaugeRect(gaugeX, gaugeY, gaugewidth, gaugeHeight);
@@ -2418,7 +2424,7 @@ Sprite_Gauge.prototype.drawLabel = function() {
     const x = this.labelOutlineWidth() / 2;
     const y = this.labelY();
     const width = this.bitmapWidth();
-    const height = this.textHeight();
+    const height = this.bitmapHeight();
     this.setupLabelFont();
     this.bitmap.paintOpacity = this.labelOpacity();
     this.bitmap.drawText(label, x, y, width, height, "left");
@@ -2435,9 +2441,7 @@ Sprite_Gauge.prototype.setupLabelFont = function() {
 
 Sprite_Gauge.prototype.measureLabelWidth = function() {
     this.setupLabelFont();
-    const labels = [TextManager.hpA, TextManager.mpA, TextManager.tpA];
-    const widths = labels.map(str => this.bitmap.measureTextWidth(str));
-    return Math.ceil(Math.max(...widths));
+    return this.bitmap.measureTextWidth(this.label());
 };
 
 Sprite_Gauge.prototype.labelOpacity = function() {
@@ -2447,7 +2451,7 @@ Sprite_Gauge.prototype.labelOpacity = function() {
 Sprite_Gauge.prototype.drawValue = function() {
     const currentValue = this.currentValue();
     const width = this.bitmapWidth();
-    const height = this.textHeight();
+    const height = this.bitmapHeight();
     this.setupValueFont();
     this.bitmap.drawText(currentValue, 0, 0, width, height, "right");
 };
@@ -3475,9 +3479,8 @@ Spriteset_Map.prototype.updateParallax = function() {
         this._parallax.bitmap = ImageManager.loadParallax(this._parallaxName);
     }
     if (this._parallax.bitmap) {
-        const bitmap = this._parallax.bitmap;
-        this._parallax.origin.x = $gameMap.parallaxOx() % bitmap.width;
-        this._parallax.origin.y = $gameMap.parallaxOy() % bitmap.height;
+        this._parallax.origin.x = $gameMap.parallaxOx();
+        this._parallax.origin.y = $gameMap.parallaxOy();
     }
 };
 

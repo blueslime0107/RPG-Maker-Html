@@ -33,7 +33,7 @@
 // 이벤트 커맨드 정의
 /** @type {Object<number, CommandDefinition>} */
 const EVENT_COMMAND_DEFINITIONS = {
-    0:{
+    0: {
         name: '빈 커맨드',
         getDisplayText: (params) => {
             return ``;
@@ -414,17 +414,17 @@ const EVENT_COMMAND_DEFINITIONS = {
             editor.targetVar.value = cmd.parameters[0];
             editor.operation.value = cmd.parameters[2];
             editor.operandType.value = cmd.parameters[3];
-            if(editor.operandType.value === 0) {
+            if (editor.operandType.value === 0) {
                 editor.operandNum.value = cmd.parameters[4];
             }
-            if(editor.operandType.value === 1) {
+            if (editor.operandType.value === 1) {
                 editor.operandVar.value = cmd.parameters[4];
             }
-            if(editor.operandType.value === 2) {
+            if (editor.operandType.value === 2) {
                 editor.operandRnd1.value = cmd.parameters[4];
                 editor.operandRnd2.value = cmd.parameters[5];
             }
-            if(editor.operandType.value === 4) {
+            if (editor.operandType.value === 4) {
                 editor.operandscript.value = cmd.parameters[4];
             }
 
@@ -434,22 +434,22 @@ const EVENT_COMMAND_DEFINITIONS = {
             cmd.parameters[1] = cmd.parameters[0]
             cmd.parameters[2] = editor.operation.value;
             cmd.parameters[3] = editor.operandType.value;
-            if(cmd.parameters[3] === 0) {
+            if (cmd.parameters[3] === 0) {
                 cmd.parameters[4] = editor.operandNum.value;
             }
-            if(cmd.parameters[3] === 1) {
+            if (cmd.parameters[3] === 1) {
                 cmd.parameters[4] = editor.operandVar.value;
             }
-            if(cmd.parameters[3] === 2) {
+            if (cmd.parameters[3] === 2) {
                 cmd.parameters[4] = editor.operandRnd1.value;
                 cmd.parameters[5] = editor.operandRnd2.value;
             }
-            if(cmd.parameters[3] === 4) {
+            if (cmd.parameters[3] === 4) {
                 cmd.parameters[4] = editor.operandscript.value;
             }
         },
         editorFields: {
-            targetVar:{
+            targetVar: {
                 label: '변수',
                 type: 'variable',
                 default: 1
@@ -610,7 +610,7 @@ const EVENT_COMMAND_DEFINITIONS = {
                 editor.yVar.value = cmd.parameters[3];
             } else {
                 // 직접 지정
-                editor.mapId.value = cmd.parameters[1]  ;
+                editor.mapId.value = cmd.parameters[1];
                 editor.x.value = cmd.parameters[2];
                 editor.y.value = cmd.parameters[3];
             }
@@ -905,7 +905,7 @@ const EVENT_COMMAND_DEFINITIONS = {
             cmd.parameters[1] = editor.value.value;
         },
         editorFields: {
-            switch:{
+            switch: {
                 label: '셀프 스위치',
                 type: 'select',
                 options: [
@@ -915,7 +915,7 @@ const EVENT_COMMAND_DEFINITIONS = {
                     { value: 3, label: 'D' }
                 ]
             },
-            value:{
+            value: {
                 label: '상태',
                 type: 'toggle'
             }
