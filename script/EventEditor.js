@@ -171,6 +171,10 @@ class EventEditor {
             editor.update();
         });
 
+        // 조건부 표시 처리를 위한 컨테이너/의존 맵 준비
+        const fieldContainers = {};
+        const dependentsMap = {}; // controlKey -> [dependentKey,...]
+
         // 모달 생성 및 렌더링
         const overlay = document.createElement('div');
         overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;`;
@@ -184,7 +188,7 @@ class EventEditor {
         title.style.cssText = 'color: #fff; margin: 0 0 20px 0; font-size: 18px;';
         container.appendChild(title);
 
-        // 필드 렌더링
+        // 필드 렌더링 (조건부 표시 지원)
         fieldsArray.forEach(field => {
             const fieldEditor = fieldEditors[field._key];
             if (!fieldEditor) return;
@@ -199,6 +203,62 @@ class EventEditor {
 
             fieldContainer.appendChild(fieldEditor.html);
             container.appendChild(fieldContainer);
+
+            fieldContainers[field._key] = fieldContainer;
+
+            // collect dependency info if condition exists
+            if (field.condition && typeof field.condition === 'object') {
+                Object.keys(field.condition).forEach(controlKey => {
+                    dependentsMap[controlKey] = dependentsMap[controlKey] || [];
+                    dependentsMap[controlKey].push(field._key);
+                });
+            }
+        });
+
+        // 조건 평가 함수
+        const evaluateConditionFor = (key) => {
+            const field = fieldsArray.find(f => f._key === key);
+            if (!field || !field.condition) return true;
+            const cond = field.condition;
+            return Object.keys(cond).every(controlKey => {
+                const expected = cond[controlKey];
+                const ctlEditor = fieldEditors[controlKey];
+                if (!ctlEditor) return false;
+                const actual = ctlEditor.value;
+                // loose equality to allow string/number matches
+                return actual == expected;
+            });
+        };
+
+        // 초기 표시 상태 설정
+        Object.keys(fieldContainers).forEach(key => {
+            try {
+                const ok = evaluateConditionFor(key);
+                fieldContainers[key].style.display = ok ? '' : 'none';
+            } catch (e) {
+                fieldContainers[key].style.display = '';
+            }
+        });
+
+        // 변화 감지 바인딩: 컨트롤 필드 변경 시 의존 필드 재평가
+        Object.keys(dependentsMap).forEach(controlKey => {
+            const ctlEditor = fieldEditors[controlKey];
+            if (!ctlEditor) return;
+            const element = ctlEditor.html;
+            const trigger = () => {
+                // small delay to let the field's own handler update .value
+                setTimeout(() => {
+                    const dependents = dependentsMap[controlKey] || [];
+                    dependents.forEach(depKey => {
+                        const ok = evaluateConditionFor(depKey);
+                        const containerDep = fieldContainers[depKey];
+                        if (containerDep) containerDep.style.display = ok ? '' : 'none';
+                    });
+                }, 0);
+            };
+            element.addEventListener('change', trigger);
+            element.addEventListener('input', trigger);
+            element.addEventListener('click', trigger);
         });
 
         // 버튼 영역

@@ -1226,6 +1226,9 @@ class EditorUI {
             e.preventDefault();   // 브라우저 기본 메뉴 방지
             e.stopPropagation();  // 상위 노드로 이벤트 전파 방지
 
+            // 우클릭으로도 해당 맵을 선택하고 로드하도록 함
+            if (typeof main.loadMap === 'function') main.loadMap(node.id);
+
             // 메뉴를 표시하는 함수 호출 (좌표와 노드 정보를 넘김)
             this.showMapContextMenu(e.pageX, e.pageY, node);
         };
@@ -1325,9 +1328,9 @@ class EditorUI {
     }
 
     showMapContextMenu(x, y, node) {
-        // 기존 메뉴가 있다면 제거
         let menu = document.getElementById('map-context-menu');
         if (menu) menu.remove();
+        console.log("close")
 
         menu = document.createElement('div');
         menu.id = 'map-context-menu';
@@ -1390,7 +1393,6 @@ class EditorUI {
                         opt.action();
                     }
                     menu.remove();
-                    this.clearBlueCircle(); // 파란원 제거
                 };
             }
             menu.appendChild(div);
@@ -1401,9 +1403,9 @@ class EditorUI {
         // 다른 곳 클릭 시 메뉴 닫기
         setTimeout(() => {
             const closeMenu = (e) => {
+        console.log("close")
                 if (!menu.contains(e.target)) {
                     menu.remove();
-                    this.clearBlueCircle(); // 파란원 제거
                     document.removeEventListener('click', closeMenu);
                 }
             };
@@ -1851,7 +1853,7 @@ class EditorUI {
         // 역변환: point = (point' / zoom) - pan
         x = (x / this.mapZoom) - this.mapPanX;
         y = (y / this.mapZoom) - this.mapPanY;
-        
+
         // 타일 좌표로 변환
         return {
             x: Math.floor(x / 48),
@@ -1941,23 +1943,11 @@ class EditorUI {
             
             // 파란원 그리기
             this.drawBlueCircle(x, y);
-            
-            // 다른 곳 클릭시 파란원 제거
-            setTimeout(() => {
-                const clearCircle = (e) => {
-                    this.clearBlueCircle();
-                    document.removeEventListener('click', clearCircle);
-                    document.removeEventListener('contextmenu', clearCircle);
-                };
-                document.addEventListener('click', clearCircle);
-                document.addEventListener('contextmenu', clearCircle);
-            }, 0);
         });
 
         window.addEventListener('mousemove', (e) => {
             if (this.isPanning) {
                 // 팬 중일 때 컨텍스트 메뉴 닫기
-                this.closeContextMenu();
                 
                 // map-editor 기준 좌표로 계산
                 const mapEditor = document.getElementById('map-editor');
@@ -2113,6 +2103,7 @@ class EditorUI {
     
     // 파란원 그리기 (우클릭 위치 표시)
     drawBlueCircle(x, y) {
+        console.log("?",x,y)
         const overlay = document.getElementById('map-overlay-canvas');
         const ctx = overlay.getContext('2d');
         
@@ -2121,23 +2112,6 @@ class EditorUI {
         
         // 전체 다시 그리기
         ctx.clearRect(0, 0, overlay.width, overlay.height);
-        
-        // 1. 선택범위 그리기 (마우스가 맵 위에 있으면)
-        if (this.currentMouseTile && main.map) {
-            const tileX = this.currentMouseTile.x;
-            const tileY = this.currentMouseTile.y;
-            
-            if (tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height) {
-                const tw = this.selectedTile ? this.selectedTile.w : 1;
-                const th = this.selectedTile ? this.selectedTile.h : 1;
-                
-                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-            }
-        }
         
         // 2. 파란원 그리기
         const centerX = x * 48 + 24;
@@ -2162,31 +2136,14 @@ class EditorUI {
         const overlay = document.getElementById('map-overlay-canvas');
         const ctx = overlay.getContext('2d');
         ctx.clearRect(0, 0, overlay.width, overlay.height);
-        
-        // 선택범위만 다시 그리기 (마우스가 맵 위에 있으면)
-        if (this.currentMouseTile && main.map) {
-            const tileX = this.currentMouseTile.x;
-            const tileY = this.currentMouseTile.y;
-            
-            if (tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height) {
-                const tw = this.selectedTile ? this.selectedTile.w : 1;
-                const th = this.selectedTile ? this.selectedTile.h : 1;
-                
-                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-            }
-        }
     }
     
     // 컨텍스트 메뉴 닫기
     closeContextMenu() {
+        console.log("close")
         const menu = document.getElementById('map-context-menu');
         if (menu) {
             menu.remove();
-            this.clearBlueCircle();
         }
     }
     

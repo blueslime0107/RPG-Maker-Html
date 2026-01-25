@@ -482,32 +482,38 @@ const EVENT_COMMAND_DEFINITIONS = {
             mapId: {
                 type: 'number',
                 label: '맵 ID / 변수 ID',
-                min: 1
+                min: 1,
+                condition: { designation: 0 }
             },
             x: {
                 type: 'number',
                 label: 'X 좌표 / 변수 ID',
-                min: 0
+                min: 0,
+                condition: { designation: 0 }
             },
             y: {
                 type: 'number',
                 label: 'Y 좌표 / 변수 ID',
                 min: 0,
+                condition: { designation: 0 }
             },
             mapIdVar: {
                 type: 'variable',
                 label: '맵 ID / 변수 ID',
-                min: 1
+                min: 1,
+                condition: { designation: 1 }
             },
             xVar: {
                 type: 'variable',
                 label: 'X 좌표 / 변수 ID',
-                min: 0
+                min: 0,
+                condition: { designation: 1 }
             },
             yVar: {
                 type: 'variable',
                 label: 'Y 좌표 / 변수 ID',
                 min: 0,
+                condition: { designation: 1 }
             },
             direction: {
                 type: 'select-direction',
