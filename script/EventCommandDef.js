@@ -394,23 +394,67 @@ const EVENT_COMMAND_DEFINITIONS = {
     122: {
         name: '변수 조작',
         category: '게임 진행',
-        defaultParm: [1, 0, 0], // [variableId, operation, operand]
+        defaultParm: [1, 1, 0, 0, 0], // [variableId, operation, operand]
         getDisplayText: (params) => {
-            const varId = String(params[0]).padStart(4, '0');
-            const varName = em.getVariableName ? em.getVariableName(params[0]) : '';
             const ops = ['=', '+=', '-=', '*=', '/=', '%'];
-            const op = ops[params[1]] || '=';
-            return `변수 조작：#${varId} ${varName} ${op} ${params[2]}`;
+            const op = ops[params[2]] || '=';
+            let operandStr = '0';
+            if (params[3] === 0) {
+                operandStr = params[4];
+            } else if (params[3] === 1) {
+                operandStr = `${String(params[4]).padStart(4, '0')} ${em.getVariableName(params[4])}`;
+            } else if (params[3] === 2) {
+                operandStr = `랜덤 ${params[4]}..${params[5]}`;
+            } else if (params[3] === 4) {
+                operandStr = params[4];
+            }
+            return `변수 조작：#${String(params[0]).padStart(4, '0')} ${em.getVariableName(params[0])} ${op} ${operandStr}`;
         },
-        editorFields: [
-            {
-                paramIndex: 0,
+        getValue: (cmd, editor) => {
+            editor.targetVar.value = cmd.parameters[0];
+            editor.operation.value = cmd.parameters[2];
+            editor.operandType.value = cmd.parameters[3];
+            if(editor.operandType.value === 0) {
+                editor.operandNum.value = cmd.parameters[4];
+            }
+            if(editor.operandType.value === 1) {
+                editor.operandVar.value = cmd.parameters[4];
+            }
+            if(editor.operandType.value === 2) {
+                editor.operandRnd1.value = cmd.parameters[4];
+                editor.operandRnd2.value = cmd.parameters[5];
+            }
+            if(editor.operandType.value === 4) {
+                editor.operandscript.value = cmd.parameters[4];
+            }
+
+        },
+        setValue: (cmd, editor) => {
+            cmd.parameters[0] = editor.targetVar.value;
+            cmd.parameters[1] = cmd.parameters[0]
+            cmd.parameters[2] = editor.operation.value;
+            cmd.parameters[3] = editor.operandType.value;
+            if(cmd.parameters[3] === 0) {
+                cmd.parameters[4] = editor.operandNum.value;
+            }
+            if(cmd.parameters[3] === 1) {
+                cmd.parameters[4] = editor.operandVar.value;
+            }
+            if(cmd.parameters[3] === 2) {
+                cmd.parameters[4] = editor.operandRnd1.value;
+                cmd.parameters[5] = editor.operandRnd2.value;
+            }
+            if(cmd.parameters[3] === 4) {
+                cmd.parameters[4] = editor.operandscript.value;
+            }
+        },
+        editorFields: {
+            targetVar:{
                 label: '변수',
                 type: 'variable',
                 default: 1
             },
-            {
-                paramIndex: 1,
+            operation: {
                 label: '연산',
                 type: 'select',
                 options: [
@@ -423,13 +467,41 @@ const EVENT_COMMAND_DEFINITIONS = {
                 ],
                 default: 0
             },
-            {
-                paramIndex: 2,
+            operandType: {
+                label: '피연산자 목록',
+                type: 'select',
+                options: [
+                    { value: 0, label: '정수' },
+                    { value: 1, label: '변수' },
+                    { value: 2, label: '랜덤' },
+                    { value: 3, label: '게임 데이터' },
+                    { value: 4, label: '스크립트' }
+                ]
+            },
+            operandNum: {
                 label: '값',
                 type: 'number',
-                default: 0
+                condition: { operandType: 0 }
+            },
+            operandVar: {
+                label: '변수',
+                type: 'variable',
+                condition: { operandType: 1 }
+            },
+            operandRnd1: {
+                label: '랜덤',
+                type: 'number',
+                condition: { operandType: 2 }
+            },
+            operandRnd2: {
+                type: 'number',
+                condition: { operandType: 2 }
+            },
+            operandscript: {
+                type: 'text',
+                condition: { operandType: 4 }
             }
-        ]
+        },
     },
 
     201: {
