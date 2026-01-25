@@ -60,6 +60,177 @@
             </aside>
 
             <section id="map-editor">
+                <!-- 데이터베이스 토글 버튼 -->
+                <div id="database-toggle-container">
+                    <button id="database-toggle-btn" title="데이터베이스 열기/닫기">⚙️</button>
+                </div>
+                
+                <!-- 데이터베이스 창 -->
+                <div id="database-panel" style="display: none;">
+                    <!-- 탭 헤더 -->
+                    <div id="database-tabs">
+                        <button class="db-tab active" data-tab="resources">리소스</button>
+                        <button class="db-tab" data-tab="actors">액터</button>
+                        <button class="db-tab" data-tab="items">아이템</button>
+                        <button class="db-tab" data-tab="animations">애니메이션</button>
+                        <button class="db-tab" data-tab="tilesets">타일셋</button>
+                        <button class="db-tab" data-tab="commonevents">공통이벤트</button>
+                        <button class="db-tab" data-tab="system">시스템</button>
+                    </div>
+                    
+                    <!-- 탭 컨텐츠 -->
+                    <div id="database-content">
+                        <!-- 리소스 탭 -->
+                        <div class="db-tab-content active" id="db-resources">
+                            <div class="db-tab-panel" style="display: flex; flex-direction: column; height: 100%;">
+                                <h3>리소스 관리</h3>
+                                
+                                <!-- 서브탭 버튼 -->
+                                <div class="resource-subtabs">
+                                    <button class="resource-subtab active" data-subtab="images">이미지</button>
+                                    <button class="resource-subtab" data-subtab="audio">오디오</button>
+                                    <button class="resource-subtab" data-subtab="plugins">플러그인</button>
+                                </div>
+                                
+                                <!-- 이미지 서브탭 -->
+                                <div class="resource-subtab-content active" id="resource-images">
+                                    <div class="resource-toolbar">
+                                        <button class="resource-btn" id="btn-import-image">가져오기</button>
+                                        <button class="resource-btn" id="btn-delete-image">삭제</button>
+                                    </div>
+                                    <div class="resource-content-area">
+                                        <!-- 왼쪽: 폴더 목록 -->
+                                        <div class="resource-folder-list">
+                                            <div class="resource-section-title">폴더</div>
+                                            <div id="image-folders-list" class="folder-items"></div>
+                                        </div>
+                                        <!-- 중간: 이미지 목록 -->
+                                        <div class="resource-file-list">
+                                            <div class="resource-section-title">파일</div>
+                                            <div id="image-files-list" class="file-items"></div>
+                                        </div>
+                                        <!-- 오른쪽: 미리보기 -->
+                                        <div class="resource-preview">
+                                            <div class="resource-section-title">미리보기</div>
+                                            <div id="image-preview-area" class="preview-area">
+                                                <div class="preview-empty">이미지를 선택하세요</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 오디오 서브탭 -->
+                                <div class="resource-subtab-content" id="resource-audio">
+                                    <div class="resource-toolbar">
+                                        <button class="resource-btn" id="btn-import-audio">가져오기</button>
+                                        <button class="resource-btn" id="btn-delete-audio">삭제</button>
+                                    </div>
+                                    <div class="resource-content-area">
+                                        <!-- 왼쪽: 오디오 타입 버튼 -->
+                                        <div class="audio-type-buttons">
+                                            <button class="audio-type-btn active" data-type="bgm">BGM</button>
+                                            <button class="audio-type-btn" data-type="bgs">BGS</button>
+                                            <button class="audio-type-btn" data-type="me">ME</button>
+                                            <button class="audio-type-btn" data-type="se">SE</button>
+                                        </div>
+                                        <!-- 중간: 오디오 파일 목록 -->
+                                        <div class="audio-file-list">
+                                            <div class="resource-section-title">파일 목록</div>
+                                            <div id="audio-files-list" class="file-items"></div>
+                                        </div>
+                                        <!-- 오른쪽: 재생 컨트롤 -->
+                                        <div class="audio-controls">
+                                            <div class="resource-section-title">재생</div>
+                                            <div class="audio-control-area">
+                                                <div id="audio-selected-name" class="audio-selected-name">선택된 파일 없음</div>
+                                                <button class="audio-control-btn" id="btn-play-audio">▶ 재생</button>
+                                                <button class="audio-control-btn" id="btn-stop-audio">■ 정지</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 플러그인 서브탭 -->
+                                <div class="resource-subtab-content" id="resource-plugins">
+                                    <div class="resource-toolbar">
+                                        <button class="resource-btn" id="btn-import-plugin">가져오기</button>
+                                        <button class="resource-btn" id="btn-delete-plugin">삭제</button>
+                                    </div>
+                                    <div class="resource-content-area">
+                                        <div class="plugin-list-container">
+                                            <div class="resource-section-title">활성화된 플러그인</div>
+                                            <div id="plugins-list" class="plugin-items"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 액터 탭 -->
+                        <div class="db-tab-content" id="db-actors">
+                            <div class="db-tab-panel">
+                                <h3>액터</h3>
+                                <div id="db-actors-list" class="db-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 아이템 탭 -->
+                        <div class="db-tab-content" id="db-items">
+                            <div class="db-tab-panel">
+                                <h3>아이템</h3>
+                                <div id="db-items-list" class="db-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 애니메이션 탭 -->
+                        <div class="db-tab-content" id="db-animations">
+                            <div class="db-tab-panel">
+                                <h3>애니메이션</h3>
+                                <div id="db-animations-list" class="db-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 타일셋 탭 -->
+                        <div class="db-tab-content" id="db-tilesets">
+                            <div class="db-tab-panel">
+                                <h3>타일셋</h3>
+                                <div id="db-tilesets-list" class="db-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 공통이벤트 탭 -->
+                        <div class="db-tab-content" id="db-commonevents">
+                            <div class="db-tab-panel">
+                                <h3>공통 이벤트</h3>
+                                <div id="db-commonevents-list" class="db-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 시스템 탭 -->
+                        <div class="db-tab-content" id="db-system">
+                            <div class="db-tab-panel">
+                                <h3>시스템</h3>
+                                <div class="db-section">
+                                    <label>게임 제목</label>
+                                    <input type="text" id="db-game-title" class="db-input">
+                                </div>
+                                <div class="db-section">
+                                    <label>스위치 목록</label>
+                                    <div id="db-switches-list" class="db-list"></div>
+                                </div>
+                                <div class="db-section">
+                                    <label>변수 목록</label>
+                                    <div id="db-variables-list" class="db-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="database-close-container">
+                        <button id="database-close-btn" title="닫기">▼ 닫기</button>
+                    </div>
+                </div>
+                
                 <div id="map-grid-container">
                     <canvas id="map-canvas"></canvas>
                     <canvas id="map-overlay-canvas"
