@@ -240,352 +240,103 @@ class MapManager {
 
         // WALL 타입 테이블 (16개) - 벽 타일
         // RPG Maker MZ 공식 알고리즘: L=1, R=2, T=4, B=8
-        if (autotileTable.length === 16) {
-            // 패턴: 오른쪽만 연결
-            // □□□
-            // □ㅇ■
-            // □□□
-            if (!T && R && !B && !L) return 11;
-            // 패턴: 위만 연결
-            // □■□
-            // □ㅇ□
-            // □□□
-            if (T && !R && !B && !L) return 13;
-            // 패턴: 아래만 연결
-            // □□□
-            // □ㅇ□
-            // □■□
-            if (!T && !R && B && !L) return 7;
-
-            // 패턴: 왼쪽만 연결
-            // □□□
-            // ■ㅇ□
-            // □□□
-            if (!T && !R && !B && L) return 14;
-            // 패턴: 왼쪽+오른쪽만 연결
-            // □□□
-            // ■ㅇ■
-            // □□□
-            if (!T && R && !B && L) return 10;
-
-
-
-
-            // 패턴: 4방향 모두 연결
-            // ■■■
-            // ■ㅇ■
-            // ■■■
-            if (T && R && B && L) return 0;
-
-
-
-
-
-
-            // 패턴: 위+오른쪽+아래 연결
-            // □■□
-            // □ㅇ■
-            // □■□
-            if (T && R && B && !L) return 1; // # 완벽
-            // 패턴: 왼쪽+오른쪽+아래 연결
-            // □□□
-            // ■ㅇ■
-            // □■□
-            if (!T && R && B && L) return 2; // # 완벽
-            // 패턴: 오른쪽+아래 연결
-            // □□□
-            // □ㅇ■
-            // □■□
-            if (!T && R && B && !L) return 3; // # 완벽
-            // 패턴: 위+왼쪽+아래 연결
-            // □■□
-            // ■ㅇ□
-            // □■□
-            if (T && !R && B && L) return 4;
-            // 패턴: 위+아래만 연결
-            // □■□
-            // □ㅇ□
-            // □■□
-            if (T && !R && B && !L) return 5;
-
-            // 패턴: 왼쪽+아래 연결
-            // □□□
-            // ■ㅇ□
-            // □■□
-            if (!T && !R && B && L) return 6; // # 완벽
-
-
-            // 패턴: 위+오른쪽 연결
-            // □■□
-            // □ㅇ■
-            // □□□
-            if (T && R && !B && !L) return 9; // # 완벽
-
-            // 패턴: 위+왼쪽+오른쪽 연결
-            // □■□
-            // ■ㅇ■
-            // □□□
-            if (T && R && !B && L) return 8; // # 완벽
-            // 패턴: 위+왼쪽 연결
-            // □■□
-            // ■ㅇ□
-            // □□□
-            if (T && !R && !B && L) return 12; // # 완벽
-
-
-
-
-            // 패턴: 고립 (아무것도 연결 안됨)
-            // □□□
-            // □ㅇ□
-            // □□□
-            return 15;
-        }
-
         // WATERFALL 타입 테이블 (4개) - 폭포 타일
+
         if (autotileTable.length === 4) {
             // 폭포 타입: 좌우만 고려
             if (L) index |= 0x01;
             if (R) index |= 0x02;
             return index;
         }
-
+        // WALL 타입 테이블 (16개) - 벽 타일
+        if (autotileTable.length === 16) {
+            if (T && R && B && L) return 0;
+            if (T && R && B && !L) return 1;
+            if (!T && R && B && L) return 2;
+            if (!T && R && B && !L) return 3;
+            if (T && !R && B && L) return 4;
+            if (T && !R && B && !L) return 5;
+            if (!T && !R && B && L) return 6;
+            if (!T && !R && B && !L) return 7;
+            if (T && R && !B && L) return 8;
+            if (T && R && !B && !L) return 9;
+            if (!T && R && !B && L) return 10;
+            if (!T && R && !B && !L) return 11;
+            if (T && !R && !B && L) return 12;
+            if (T && !R && !B && !L) return 13;
+            if (!T && !R && !B && L) return 14;
+            return 15;
+        }
         // FLOOR 타입 테이블 (48개) - 바닥 타일
-
-
-        // ========================================
-        // 4방향 모두 연결 (0-15): 코너 조합
-        // ========================================
         if (T && R && L && B) {
-            // 패턴: 4방향 연결, 우측+하단 3코너
-            // □■■
-            // ■ㅇ■
-            // ■■■
-            if (!TL && TR && BL && BR) return 1; //# 완벽
-            // 패턴: 4방향 연결, 좌측+하단 3코너
-            // ■■□
-            // ■ㅇ■
-            // ■■■
-            if (TL && !TR && BL && BR) return 2; //# 완벽
-            // 패턴: 4방향 연결, 하단 양쪽 코너
-            // □■□
-            // ■ㅇ■
-            // ■■■
-            if (!TL && !TR && BL && BR) return 3; //# 완벽
-            // 패턴: 4방향 연결, 상단+좌하단 3코너
-            // ■■■
-            // ■ㅇ■
-            // ■■□
-            if (TL && TR && BL && !BR) return 4; //# 완벽
-            // 패턴: 4방향 연결, 상단+우하단 3코너
-            // 패턴: 4방향 연결, 우상단+좌하단 대각선
-            // □■■
-            // ■ㅇ■
-            // ■■□
-            if (!TL && TR && BL && !BR) return 5; //# 완벽
-            // 패턴: 4방향 연결, 좌측 양쪽 코너
-            // ■■□
-            // ■ㅇ■
-            // ■■□
-            if (TL && !TR && BL && !BR) return 6; //# 완벽
-            // 패턴: 4방향 연결, 좌하단 코너만
-            // □■□
-            // ■ㅇ■
-            // ■■□
-            if (!TL && !TR && BL && !BR) return 7; //# 완벽
-            // ■■■
-            // ■ㅇ■
-            // □■■
-            if (TL && TR && !BL && BR) return 8; //# 완벽
-            // 패턴: 4방향 연결, 우측 양쪽 코너
-            // □■■
-            // ■ㅇ■
-            // □■■
-            if (!TL && TR && !BL && BR) return 9; //# 완벽
-            // 패턴: 4방향 연결, 좌상단+우하단 대각선
-            // ■■□
-            // ■ㅇ■
-            // □■■
-            if (TL && !TR && !BL && BR) return 10; //# 완벽
-            // 패턴: 4방향 연결, 우하단 코너만
-            // □■□
-            // ■ㅇ■
-            // □■■
-            if (!TL && !TR && !BL && BR) return 11; //# 완벽
-            // 패턴: 4방향 연결, 상단 양쪽 코너
-            // ■■■
-            // ■ㅇ■
-            // □■□
-            if (TL && TR && !BL && !BR) return 12; //# 완벽
-            // 패턴: 4방향 연결, 우상단 코너만
-            // □■■
-            // ■ㅇ■
-            // □■□
-            if (!TL && TR && !BL && !BR) return 13; //# 완벽
-            // 패턴: 4방향 연결, 좌상단 코너만
-            // ■■□
-            // ■ㅇ■
-            // □■□
-            if (TL && !TR && !BL && !BR) return 14; //# 완벽
-            // 패턴: 4방향 연결, 코너 없음
-            // □■□
-            // ■ㅇ■
-            // □■□
+            if (!TL && TR && BL && BR) return 1;
+            if (TL && !TR && BL && BR) return 2;
+            if (!TL && !TR && BL && BR) return 3;
+            if (TL && TR && BL && !BR) return 4;
+            if (!TL && TR && BL && !BR) return 5;
+            if (TL && !TR && BL && !BR) return 6;
+            if (!TL && !TR && BL && !BR) return 7;
+            if (TL && TR && !BL && BR) return 8;
+            if (!TL && TR && !BL && BR) return 9;
+            if (TL && !TR && !BL && BR) return 10;
+            if (!TL && !TR && !BL && BR) return 11;
+            if (TL && TR && !BL && !BR) return 12;
+            if (!TL && TR && !BL && !BR) return 13;
+            if (TL && !TR && !BL && !BR) return 14;
             if (!TL && !TR && !BL && !BR) return 15;
-            // 패턴: 4방향 연결, 모든 코너
-            // ■■■
-            // ■ㅇ■
-            // ■■■
             return 0;
         }
-
-        // ========================================
-        // 3방향 연결 패턴
-        // ========================================
-
-        // 패턴: 위+아래+오른쪽 연결
-        // □■□
-        // □ㅇ■
-        // □■□
         if (T && R && !L && B) {
-            if (TR && BR) return 16;   // 우측 양쪽 코너 // # 완벽
-            if (!TR && BR) return 17;  // 우하단 코너만
-            if (TR && !BR) return 18;  // 우상단 코너만
-            return 19;                  // 코너 없음
+            if (TR && BR) return 16; 
+            if (!TR && BR) return 17; 
+            if (TR && !BR) return 18;  
+            return 19;                 
         }
-        // 패턴: 아래+좌+우 연결
-        // □□□
-        // ■ㅇ■
-        // □■□
         if (!T && R && L && B) {
-            if (BL && BR) return 20;   // 하단 양쪽 코너 
-            if (BL && !BR) return 21;  // 좌하단 코너만 // # 완벽
-            if (!BL && BR) return 22;  // 우하단 코너만 // # 완벽
-            return 23;                  // 코너 없음
+            if (BL && BR) return 20;
+            if (BL && !BR) return 21; 
+            if (!BL && BR) return 22;
+            return 23;                 
         }
-        // 패턴: 위+아래+왼쪽 연결
-        // □■□
-        // ■ㅇ□
-        // □■□
         if (T && !R && L && B) {
-            if (TL && BL) return 24;   // 좌측 양쪽 코너
-            if (TL && !BL) return 25;  // 좌상단 코너만
-            if (!TL && BL) return 26;  // 좌하단 코너만
-            return 27;                   // 코너 없음
+            if (TL && BL) return 24;
+            if (TL && !BL) return 25; 
+            if (!TL && BL) return 26;  
+            return 27; 
         }
-        // 패턴: 위+왼쪽+오른쪽 연결
-        // □■□
-        // ■ㅇ■
-        // □□□
         if (T && R && L && !B) {
-            if (TL && TR) return 28;   // 상단 양쪽 코너
-            if (!TL && TR) return 29;  // 우상단 코너만
-            if (TL && !TR) return 30;  // 좌상단 코너만
-            return 31;                   // 코너 없음
+            if (TL && TR) return 28;
+            if (!TL && TR) return 29;
+            if (TL && !TR) return 30;
+            return 31;
         }
-
-        // ========================================
-        // 2방향 연결 (반대편)
-        // ========================================
-
-        // 패턴: 위+아래만 연결 (세로)
-        // □■□
-        // □ㅇ□
-        // □■□
-        if (T && !R && !L && B) {
-            return 32;
-        }
-
-        // 패턴: 왼쪽+오른쪽만 연결 (가로)
-        // □□□
-        // ■ㅇ■
-        // □□□
-        if (!T && R && L && !B) {
-            return 33;
-        }
-
-        // ========================================
-        // 2방향 연결 (인접)
-        // ========================================
-
-        // 패턴: 아래+오른쪽 연결
-        // □□□
-        // □ㅇ■
-        // □■□
+        if (T && !R && !L && B) {return 32;}
+        if (!T && R && L && !B) {return 33;}
         if (!T && R && !L && B) {
-            if (BR) return 34;  // 우하단 코너
-            return 35;            // 코너 없음
+            if (BR) return 34;  
+            return 35;            
         }
-        // 패턴: 아래+왼쪽 연결
-        // □□□
-        // ■ㅇ□
-        // □■□
         if (!T && !R && L && B) {
-            if (BL) return 36;  // 좌하단 코너
-            return 37;            // 코너 없음
+            if (BL) return 36;  
+            return 37;           
         }
-        // 패턴: 위+왼쪽 연결
-        // □■□
-        // ■ㅇ□
-        // □□□
         if (T && !R && L && !B) {
-            if (TL) return 38;  // 좌상단 코너
-            return 39;            // 코너 없음
+            if (TL) return 38;  
+            return 39; 
         }
-
-        // 패턴: 위+오른쪽 연결
-        // □■□
-        // □ㅇ■
-        // □□□
         if (T && R && !L && !B) {
-            if (TR) return 40;  // 우상단 코너
-            return 41;           // 코너 없음
+            if (TR) return 40; 
+            return 41;
         }
-
-        // ========================================
-        // 1방향만 연결
-        // ========================================
-
-        // 패턴: 아래만 연결
-        // □□□
-        // □ㅇ□
-        // □■□
-        if (!T && !R && !L && B) {
-            return 42;
-        }
-        // 패턴: 오른쪽만 연결
-        // □□□
-        // □ㅇ■
-        // □□□
-        if (!T && R && !L && !B) {
-            return 43;
-        }
-        // 패턴: 위만 연결
-        // □■□
-        // □ㅇ□
-        // □□□
-        if (T && !R && !L && !B) {
-            return 44;
-        }
-        // 패턴: 왼쪽만 연결
-        // □□□
-        // ■ㅇ□
-        // □□□
-        if (!T && !R && L && !B) {
-            return 45;
-        }
-        // 기본값 (고립)
-        // 패턴: 고립 타일 (아무것도 연결 안됨)
-        // □□□
-        // □ㅇ□
-        // □□□
+        if (!T && !R && !L && B) {return 42;}
+        if (!T && R && !L && !B) {return 43;}
+        if (T && !R && !L && !B) {return 44;}
+        if (!T && !R && L && !B) {return 45;}
         return 47;
     }
 
     // 오토타일 전파: 주변 8칸 재계산
     propagateAutotile(x, y, layerIdx) {
-        const width = main.map.width;
-        const height = main.map.height;
 
         const directions = [
             [-1, -1], [0, -1], [1, -1],
@@ -613,9 +364,6 @@ class MapManager {
     // 타일 지우기
     eraseTile(mapX, mapY, layerMode, selectedTile) {
         if (!main.map) return;
-
-        const width = main.map.width;
-        const height = main.map.height;
 
         for (let h = 0; h < selectedTile.h; h++) {
             for (let w = 0; w < selectedTile.w; w++) {

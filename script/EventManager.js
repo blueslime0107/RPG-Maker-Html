@@ -1,3 +1,4 @@
+
 class EventManager {
     constructor() {
         this.events = null
@@ -10,10 +11,12 @@ class EventManager {
         this.draggedEvent = null; // 드래그 중인 이벤트
         this.dragStartPos = null; // 드래그 시작 위치
         this.selectedEvent = null; // 현재 선택된 이벤트
-        this.editor = new EventEditor(this); // EventEditor 인스턴스 추가
+        this.currentPageIndex = 0; // 현재 페이지 인덱스
+        this.editor = new EventEditor(document.getElementById('ins-contents-list')); // EventEditor 인스턴스 (독립적으로 생성)
         this.initClickEvent()
         this.initDragEvent();
         this.initInspectorTabs();
+        this.initInspectorButtons();
         this.initFontSizeControl();
     }
 
@@ -505,7 +508,7 @@ class EventManager {
     }
 
     // 커맨드 컨텍스트 메뉴
-    showCommandContextMenu(x, y, cmd, index, page) {
+    showCommandContextMenu(x, y, cmd, index, { list }) {
         this.closeContextMenu();
 
         const menu = document.createElement('div');
@@ -527,11 +530,11 @@ class EventManager {
         const options = [
             {
                 label: '편집',
-                action: () => this.editor.editCommand(cmd, index, page)
+                action: () => this.editor.editCommand(cmd, index, list)
             },
             {
                 label: '추가 (Enter)',
-                action: () => this.editor.showCommandList(index, page)
+                action: () => this.editor.showCommandList(index, list)
             },
             {
                 label: '복사 (Ctrl+C)',
@@ -539,12 +542,12 @@ class EventManager {
             },
             {
                 label: '붙여넣기 (Ctrl+V)',
-                action: () => this.editor.pasteCommand(index, page),
+                action: () => this.editor.pasteCommand(index, list),
                 disabled: !this.commandClipboard
             },
             {
                 label: '삭제 (Del)',
-                action: () => this.editor.deleteCommand(index, page),
+                action: () => this.editor.deleteCommand(index, list),
                 color: '#ff6666',
                 disabled: cmd.code === 0
             }
@@ -783,7 +786,7 @@ class EventManager {
             if (this.selectedEvent && this.currentPageIndex !== undefined) {
                 const page = this.selectedEvent.pages[this.currentPageIndex];
                 if (page) {
-                    this.editor.displayCommandList(page);
+                    this.editor.displayCommandList(page.list);
                 }
             }
         }
@@ -801,6 +804,66 @@ class EventManager {
         }
         if (commandsBtn) {
             commandsBtn.onclick = () => this.switchContentTab('commands');
+        }
+    }
+
+    // 인스펙터 버튼 이벤트 초기화
+    initInspectorButtons() {
+        // 새로 만들기 버튼
+        const newBtn = document.getElementById('ins-btn-new');
+        if (newBtn) {
+            newBtn.addEventListener('click', () => {
+                if (!this.selectedEvent || this.currentPageIndex === undefined) return;
+                const page = this.selectedEvent.pages[this.currentPageIndex];
+                if (!page) return;
+                const lastIndex = page.list.length - 1;
+                this.editor.showCommandList(lastIndex, page.list);
+            });
+        }
+
+        // 복사 버튼
+        const copyBtn = document.getElementById('ins-btn-copy');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                if (!this.selectedCommand) return;
+                this.editor.copyCommand(this.selectedCommand.cmd, this.selectedCommand.index);
+            });
+        }
+
+        // 붙여넣기 버튼
+        const pasteBtn = document.getElementById('ins-btn-paste');
+        if (pasteBtn) {
+            pasteBtn.addEventListener('click', () => {
+                if (!this.selectedCommand || !this.selectedEvent || this.currentPageIndex === undefined) return;
+                const page = this.selectedEvent.pages[this.currentPageIndex];
+                if (!page) return;
+                this.editor.pasteCommand(this.selectedCommand.index, page.list);
+            });
+        }
+
+        // 삭제 버튼
+        const deleteBtn = document.getElementById('ins-btn-delete');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                if (!this.selectedCommand || !this.selectedEvent || this.currentPageIndex === undefined) return;
+                if (this.selectedCommand.cmd.code === 0) return; // 빈 코드는 삭제 불가
+                const page = this.selectedEvent.pages[this.currentPageIndex];
+                if (!page) return;
+                this.editor.deleteCommand(this.selectedCommand.index, page.list);
+            });
+        }
+
+        // 비우기 버튼
+        const clearBtn = document.getElementById('ins-btn-clear');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (!this.selectedEvent || this.currentPageIndex === undefined) return;
+                const page = this.selectedEvent.pages[this.currentPageIndex];
+                if (!page) return;
+                if (!confirm('모든 실행 내용을 삭제하시겠습니까?')) return;
+                page.list = [{ code: 0, indent: 0, parameters: [] }];
+                this.editor.displayCommandList(page.list);
+            });
         }
     }
 
@@ -1079,7 +1142,7 @@ class EventManager {
         }
 
         // 실행 내용 표시
-        this.editor.displayCommandList(page);
+        this.editor.displayCommandList(page.list);
 
         // 이미지 미리보기
         this.drawInspectorPreview(event, pageIndex);
@@ -2787,7 +2850,7 @@ class EventManager {
         this.showMoveRouteEditor(cmd.parameters[0], cmd.parameters[1], (characterId, moveRoute) => {
             cmd.parameters[0] = characterId;
             cmd.parameters[1] = moveRoute;
-            this.editor.displayCommandList(page);
+            this.editor.displayCommandList(page.list);
         });
     }
 

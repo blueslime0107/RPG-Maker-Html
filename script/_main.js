@@ -23,6 +23,7 @@ class EditorMain {
         // 모듈 인스턴스 생성 (나중에 구현)
         this.mapManager = new MapManager();
         this.eventManager = new EventManager();
+        this.commonEventEditor = new EventEditor(document.getElementById('db-commonevent-commands')); // 공통이벤트용 별도 에디터
         this.editorUI = new EditorUI()
 
 
@@ -592,6 +593,59 @@ class EditorMain {
         // 현재 맵 ID를 localStorage에 저장
         localStorage.setItem('lastMapId', id);
     }
+
+    // 프로젝트 저장
+    saveProject() {
+        console.log('프로젝트 저장 시작...');
+        
+        // 저장할 파일 목록
+        const filesToSave = [];
+        
+        // 1. MapInfos.json 저장
+        filesToSave.push({
+            filename: 'MapInfos.json',
+            data: this.mapInfos
+        });
+        
+        // 2. 모든 맵 데이터 저장
+        Object.keys(this.mapDatas).forEach(mapId => {
+            const mapIdStr = mapId.toString().padStart(3, '0');
+            filesToSave.push({
+                filename: `Map${mapIdStr}.json`,
+                data: this.mapDatas[mapId]
+            });
+        });
+        
+        // 3. System.json 저장 (스위치/변수 등)
+        if (this.systemData) {
+            filesToSave.push({
+                filename: 'System.json',
+                data: this.systemData
+            });
+        }
+        
+        // 4. 각 파일 다운로드
+        filesToSave.forEach(file => {
+            this.downloadJSON(file.filename, file.data);
+        });
+        
+        console.log(`${filesToSave.length}개 파일 저장 완료`);
+        alert(`${filesToSave.length}개의 데이터 파일이 다운로드되었습니다.\nproject/data/ 폴더에 복사해주세요.`);
+    }
+    
+    // JSON 파일 다운로드 헬퍼
+    downloadJSON(filename, data) {
+        const json = JSON.stringify(data, null, 0); // 압축된 JSON (줄바꿈 없음)
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        
+        URL.revokeObjectURL(url);
+    }
 }
 
 class EditorUI {
@@ -630,7 +684,32 @@ class EditorUI {
         this.initToolEvents();
         this.initMapPaintEvents();
         this.initDatabasePanel();
+        this.initToolbarButtons();
         this.drawTileset(this.selectedTilesetTab);
+    }
+
+    // 툴바 버튼 이벤트 초기화
+    initToolbarButtons() {
+        // 게임 실행 버튼
+        const runGameBtn = document.getElementById('btn-run-game');
+        if (runGameBtn) {
+            runGameBtn.addEventListener('click', () => {
+                const width = 816;
+                const height = 624;
+                const left = (screen.width - width) / 2;
+                const top = (screen.height - height) / 2;
+                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no`;
+                window.open('project/index.html', 'RPG_Game', features);
+            });
+        }
+        
+        // 프로젝트 저장 버튼
+        const saveBtn = document.getElementById('btn-save');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                main.saveProject();
+            });
+        }
     }
 
     // 인스펙터 리사이저 초기화 (오른쪽 이벤트 인스펙터)
@@ -884,8 +963,32 @@ class EditorUI {
                 <span class="db-list-item-id">#${index.toString().padStart(4, '0')}</span>
                 <span class="db-list-item-name">${event.name || '(이름 없음)'}</span>
             `;
+            
+            // 클릭 이벤트 추가
+            item.addEventListener('click', () => {
+                // 선택 상태 변경
+                document.querySelectorAll('#db-commonevents-list .db-list-item').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                item.classList.add('selected');
+                
+                // 이벤트 코드 표시 - EventEditor 사용
+                this.displayCommonEventCommands(event);
+            });
+            
             list.appendChild(item);
         });
+    }
+    
+    // 공통이벤트 코드 표시
+    displayCommonEventCommands(event) {
+        const commandsDiv = document.getElementById('db-commonevent-commands');
+        if (!commandsDiv) return;
+        
+        // 공통이벤트용 EventEditor 사용 - main에서 직접 접근
+        if (main.commonEventEditor) {
+            main.commonEventEditor.displayCommandList(event.list, commandsDiv);
+        }
     }
     
     loadSystemTab() {
