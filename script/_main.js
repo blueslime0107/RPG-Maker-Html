@@ -2,23 +2,38 @@
 class EditorMain {
     constructor() {
 
+        this.loadMapId = 1; // 기본 로드 맵 ID
         this.map = null;
         this.mapInfo = null;
-        this.images = new Map();
-
-        this.mapInfos = [];
-        this.mapDatas = {}
-        this.tilesets = []
 
         // 게임 데이터
-        this.systemData = null;
-        this.actorsData = [];
-        this.animationsData = [];
-        this.commonEventsData = [];
-        this.itemsData = [];
-        this.weaponsData = [];
-        this.armorsData = [];
-        this.mapsData = {};
+        this.data = {
+            actors: [],
+            items: [],
+            animations: [],
+            tilesets: [],
+            commonEvents: [],
+            system: {},
+            mapInfos: [],
+            maps: {}
+        }
+
+        this.images = {
+            characters: new Map(),
+            faces: new Map(),
+            parallaxes: new Map(),
+            pictures: new Map(),
+            system: new Map(),
+            tilesets: new Map(),
+            titles: new Map()
+        }
+
+        this.audios = {
+            bgm: new Map(),
+            bgs: new Map(),
+            me: new Map(),
+            se: new Map()
+        }
 
         // 모듈 인스턴스 생성 (나중에 구현)
         this.mapManager = new MapManager();
@@ -32,35 +47,134 @@ class EditorMain {
     }
 
     async init() {
-        try {
-            console.log("에디터 초기화 중...");
-            await this.loadImages();
-            await this.loadAllMaps()
-            await this.loadAllDatas()
-            await this.loadCharactersList();
-            await this.loadPicturesList();
-            await this.loadEffectsList();
-            await this.loadAudioList();
+        console.log("데이터 불러오는 중...");
+        await this.loadResources()
+        console.log("설정 불러오는 중...");
+        await this.loadEditorSetting()
 
+        this.loadMap(this.loadMapId)
+        this.editorUI.init()
+        this.editorUI.renderMapList(); // 데이터 로드 후 UI 출력
+    }
+
+    async loadResources() {
+        await this.loadAllDatas();
+        await this.loadAllImgandAudio();
+    }
+
+    async loadData(fileName){
+        const res = await fetch(`project/data/${fileName}.json`);
+        const data = await res.json();
+        return data
+    }
+
+    async loadAllDatas() {
+        this.data.mapInfos = await this.loadData('MapInfos');
+        this.data.system = await this.loadData('System');
+        this.data.actors = await this.loadData('Actors');
+        this.data.animations = await this.loadData('Animations');
+        this.data.commonEvents = await this.loadData('CommonEvents');
+        this.data.items = await this.loadData('Items');
+        this.data.tilesets = await this.loadData('Tilesets');
+        await Promise.all(this.data.mapInfos.filter(x => x != null).map(async (x) => {
+            this.data.maps[x.id] = await this.loadData(`Map${x.id.toString().padStart(3, '0')}`)
+        }))
+    }
+    
+    async loadResource(filePath, extensions){
+        try {
+            const response = await fetch(`project/${filePath}/`);
+            const html = await response.text();
+            const parser = new DOMParser();
+            const links = parser.parseFromString(html, 'text/html').querySelectorAll('a');
+
+            const resourceMap = new Map();
+            const fileList = [];
+            
+            // 파일명 목록 수집
+            links.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href) {
+                    const isValid = extensions.some(ext => href.toLowerCase().endsWith(ext));
+                    if (isValid) {
+                        const raw = href.split('/').pop();
+                        const decoded = decodeURIComponent(raw);
+                        fileList.push(decoded);
+                    }
+                }
+            });
+
+            // 이미지/오디오 타입 구분
+            const isImage = extensions.some(ext => ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext));
+            const isAudio = extensions.some(ext => ['.mp3', '.ogg', '.wav', '.m4a', '.wma'].includes(ext));
+
+            // 각 파일을 병렬로 로드
+            const promises = fileList.map(file => {
+                const nameWithoutExt = file.replace(new RegExp(`(${extensions.map(e => e.replace('.', '\\.')).join('|')})$`, 'i'), '');
+                
+                return new Promise((resolve) => {
+                    if (isImage) {
+                        const img = new Image();
+                        img.src = `project/${filePath}/${file}`;
+                        img.onload = () => {
+                            resourceMap.set(nameWithoutExt, img);
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            console.warn(`[loadResource] 이미지 로드 실패: ${file}`);
+                            resolve();
+                        };
+                    } else if (isAudio) {
+                        const audio = new Audio();
+                        audio.src = `project/${filePath}/${file}`;
+                        audio.oncanplaythrough = () => {
+                            resourceMap.set(nameWithoutExt, audio);
+                            resolve();
+                        };
+                        audio.onerror = () => {
+                            console.warn(`[loadResource] 오디오 로드 실패: ${file}`);
+                            resolve();
+                        };
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+
+            await Promise.all(promises);
+            console.log(`[loadResource] ${filePath} 로드 완료: ${resourceMap.size}개 파일`);
+            return resourceMap;
         } catch (error) {
-            console.error("초기화 중 오류 발생:", error);
-            //alert("프로젝트 파일을 찾을 수 없습니다. 경로를 확인해주세요.");
+            console.warn(`[loadResource] ${filePath} 로드 실패:`, error);
+            return new Map();
         }
+    }
+    async loadAllImgandAudio(){
+        // 이미지
+        this.images.characters = await this.loadResource('img/characters',['.png','.jpg'])
+        this.images.faces = await this.loadResource('img/faces',['.png','.jpg'])
+        this.images.parallaxes = await this.loadResource('img/parallaxes',['.png','.jpg'])
+        this.images.pictures = await this.loadResource('img/pictures',['.png','.jpg'])
+        this.images.system = await this.loadResource('img/system',['.png','.jpg'])
+        this.images.tilesets = await this.loadResource('img/tilesets',['.png','.jpg'])
+        this.images.titles = await this.loadResource('img/titles1',['.png','.jpg'])
+        // 오디오
+        this.audios.bgm = await this.loadResource('audio/bgm',['.ogg'])
+        this.audios.bgs = await this.loadResource('audio/bgs',['.ogg'])
+        this.audios.me = await this.loadResource('audio/me',['.ogg'])
+        this.audios.se = await this.loadResource('audio/se',['.ogg'])
+    }
+
+    async loadEditorSetting(){
         // 마지막으로 본 맵 ID 불러오기
         const lastMapId = localStorage.getItem('lastMapId');
-        const mapIdToLoad = lastMapId ? parseInt(lastMapId) : 1;
-        this.loadMap(mapIdToLoad)
-        this.editorUI.init()
-        
+        this.loadMapId = lastMapId ? parseInt(lastMapId) : 1;
+
         // 기본 폰트 크기 설정 (11px)
         const contentsList = document.getElementById('ins-contents-list');
-        if (contentsList) {
-            contentsList.style.fontSize = '11px';
-        }
+        contentsList.style.fontSize = '11px';
         const inspectorMain = document.getElementById('inspector-main');
-        if (inspectorMain) {
-            inspectorMain.style.fontSize = '11px';
-        }
+        inspectorMain.style.fontSize = '11px';
         
         // 모든 UI 준비 완료 후 설정 불러오기 및 적용
         setTimeout(() => {
@@ -68,507 +182,6 @@ class EditorMain {
         }, 50);
     }
 
-    // 설정 로드 및 바로 적용
-    loadAndApplySettings() {
-        try {
-            const stored = localStorage.getItem('editorSettings');
-            if (stored) {
-                const settings = JSON.parse(stored);
-                console.log('[loadAndApplySettings] 저장된 설정:', settings);
-                
-                // 폰트 크기 설정 적용
-                if (settings.fontsize) {
-                    const slider = document.getElementById('inspector-font-size');
-                    
-                    if (slider) {
-                        // 슬라이더 값 설정
-                        slider.value = parseInt(settings.fontsize);
-                        console.log('[loadAndApplySettings] 슬라이더 값 설정:', settings.fontsize);
-                        
-                        // 슬라이더 input 이벤트 트리거 (이벤트 리스너의 핸들러 함수 실행)
-                        slider.dispatchEvent(new Event('input', { bubbles: true }));
-                        console.log('[loadAndApplySettings] 슬라이더 input 이벤트 트리거됨');
-                    }
-                }
-            } else {
-                console.log('[loadAndApplySettings] 저장된 설정 없음');
-            }
-        } catch (error) {
-            console.error('[loadAndApplySettings] 설정 로드 실패:', error);
-        }
-    }
-
-
-    async loadAllMaps() {
-        // 1. MapInfos.json 로드하여 전체 맵 목록 파악
-        const infoRes = await fetch('project/data/MapInfos.json');
-        this.mapInfos = await infoRes.json();
-
-        // 2. 유효한 맵 ID 추출 (null인 항목 제외)
-        const loadPromises = this.mapInfos
-            .filter(info => info !== null)
-            .map(async (info) => {
-                const mapId = info.id.toString().padStart(3, '0');
-                try {
-                    const res = await fetch(`project/data/Map${mapId}.json`);
-                    const data = await res.json();
-                    this.mapDatas[info.id] = data;
-                    return data;
-                } catch (e) {
-                    console.error(`Map${mapId}.json 로드 실패:`, e);
-                    return null;
-                }
-            });
-
-        await Promise.all(loadPromises);
-        this.editorUI.renderMapList(); // 데이터 로드 후 UI 출력
-    }
-
-    async loadAllDatas() {
-        try {
-            // System.json 로드
-            const systemRes = await fetch('project/data/System.json');
-            this.systemData = await systemRes.json();
-            console.log('[loadAllDatas] System.json 로드 완료');
-
-            // Faces 이미지 목록 로드
-            await this.loadFacesList();
-
-            // Actors.json 로드
-            const actorsRes = await fetch('project/data/Actors.json');
-            this.actorsData = await actorsRes.json();
-            console.log('[loadAllDatas] Actors.json 로드 완료:', this.actorsData.length, '개');
-
-            // Animations.json 로드
-            const animationsRes = await fetch('project/data/Animations.json');
-            this.animationsData = await animationsRes.json();
-            console.log('[loadAllDatas] Animations.json 로드 완료:', this.animationsData.length, '개');
-
-            // CommonEvents.json 로드
-            const commonEventsRes = await fetch('project/data/CommonEvents.json');
-            this.commonEventsData = await commonEventsRes.json();
-            console.log('[loadAllDatas] CommonEvents.json 로드 완료:', this.commonEventsData.length, '개');
-
-            // Items.json 로드
-            const itemsRes = await fetch('project/data/Items.json');
-            this.itemsData = await itemsRes.json();
-            console.log('[loadAllDatas] Items.json 로드 완료:', this.itemsData.length, '개');
-
-            // Weapons.json 로드
-            const weaponsRes = await fetch('project/data/Weapons.json');
-            this.weaponsData = await weaponsRes.json();
-            console.log('[loadAllDatas] Weapons.json 로드 완료:', this.weaponsData.length, '개');
-
-            // Armors.json 로드
-            const armorsRes = await fetch('project/data/Armors.json');
-            this.armorsData = await armorsRes.json();
-            console.log('[loadAllDatas] Armors.json 로드 완료:', this.armorsData.length, '개');
-
-            // MapInfos에서 맵 이름 매핑
-            this.mapInfos.forEach(info => {
-                if (info) {
-                    this.mapsData[info.id] = info;
-                }
-            });
-            console.log('[loadAllDatas] 맵 정보 매핑 완료');
-
-            console.log('[loadAllDatas] 모든 데이터 로드 완료!');
-        } catch (error) {
-            console.error('[loadAllDatas] 데이터 로드 중 오류 발생:', error);
-        }
-    }
-
-    // 설정 저장
-    async saveSettings(settings) {
-        try {
-            const response = await fetch('project/settings.json', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings)
-            });
-
-            if (response.ok) {
-                console.log('[saveSettings] 설정 저장 완료');
-                // localStorage에도 저장 (브라우저 내 백업)
-                localStorage.setItem('editorSettings', JSON.stringify(settings));
-            } else {
-                console.warn('[saveSettings] 서버 저장 실패, localStorage에만 저장됨');
-                localStorage.setItem('editorSettings', JSON.stringify(settings));
-            }
-        } catch (error) {
-            console.warn('[saveSettings] 서버 통신 오류, localStorage에만 저장:', error);
-            localStorage.setItem('editorSettings', JSON.stringify(settings));
-        }
-    }
-
-    // 설정 로드
-    // Faces 이미지 목록 로드
-    async loadFacesList() {
-        try {
-            const response = await fetch('project/img/faces/');
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const links = doc.querySelectorAll('a');
-            
-            this.facesList = [];
-            links.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && (href.endsWith('.png') || href.endsWith('.jpg'))) {
-                    // 경로에서 파일명만 추출하고 확장자 제거
-                    const filename = href.split('/').pop().replace(/\.(png|jpg)$/i, '');
-                    this.facesList.push(filename);
-                }
-            });
-            
-            console.log('[loadFacesList] Faces 이미지 목록 로드 완료:', this.facesList.length, '개');
-        } catch (error) {
-            console.warn('[loadFacesList] Faces 목록 로드 실패, 수동 목록 사용:', error);
-            // 폴백: 일반적인 파일명들
-            this.facesList = [
-                'Actor1', 'Actor2', 'Actor3', 'Evil', 'LAD', 'Monster',
-                'Nature', 'Nature2', 'ParSL', 'People1', 'People2',
-                'People3', 'People4', 'REC', 'RET', 'SF_Actor1',
-                'SF_Actor2', 'SF_Actor3', 'SF_Monster', 'SF_People1',
-                'TRI', '윰'
-            ];
-        }
-    }
-
-    // Characters 이미지 목록 로드
-    async loadCharactersList() {
-        try {
-            const response = await fetch('project/img/characters/');
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const links = doc.querySelectorAll('a');
-            
-            this.charactersList = [];
-            links.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && (href.endsWith('.png') || href.endsWith('.jpg'))) {
-                    const raw = href.split('/').pop();
-                    const decoded = decodeURIComponent(raw);
-                    const filename = decoded.replace(/\.(png|jpg)$/i, '');
-                    this.charactersList.push(filename);
-                }
-            });
-            
-            console.log('[loadCharactersList] Characters 이미지 목록 로드 완료:', this.charactersList.length, '개');
-        } catch (error) {
-            console.warn('[loadCharactersList] Characters 목록 로드 실패:', error);
-            this.charactersList = [];
-        }
-    }
-
-    async loadPicturesList() {
-        try {
-            const response = await fetch('project/img/pictures/');
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const links = doc.querySelectorAll('a');
-            
-            this.picturesList = [];
-            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
-            
-            links.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href) {
-                    const isImage = imageExtensions.some(ext => href.toLowerCase().endsWith(ext));
-                    if (isImage) {
-                        const raw = href.split('/').pop();
-                        const decoded = decodeURIComponent(raw);
-                        const filename = decoded.replace(/\.(png|jpg|jpeg|gif|bmp|webp)$/i, '');
-                        this.picturesList.push(filename);
-                    }
-                }
-            });
-            
-            this.picturesList.sort();
-            console.log('[loadPicturesList] Pictures 이미지 목록 로드 완료:', this.picturesList.length, '개');
-        } catch (error) {
-            console.warn('[loadPicturesList] Pictures 목록 로드 실패:', error);
-            this.picturesList = [];
-        }
-    }
-
-    async loadEffectsList() {
-        try {
-            const response = await fetch('project/effects/');
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const links = doc.querySelectorAll('a');
-            
-            this.effectsList = [];
-            
-            links.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && href.toLowerCase().endsWith('.efkefc')) {
-                    const raw = href.split('/').pop();
-                    const decoded = decodeURIComponent(raw);
-                    const filename = decoded.replace(/\.efkefc$/i, '');
-                    this.effectsList.push(filename);
-                }
-            });
-            
-            this.effectsList.sort();
-            console.log('[loadEffectsList] Effects 목록 로드 완료:', this.effectsList.length, '개');
-        } catch (error) {
-            console.warn('[loadEffectsList] Effects 목록 로드 실패:', error);
-            this.effectsList = [];
-        }
-    }
-
-    async loadAudioList() {
-        try {
-            // BGM 로드
-            this.bgmList = await this.loadAudioFilesFromFolder('project/audio/bgm');
-            console.log('[loadAudioList] BGM 목록 로드 완료:', this.bgmList.length, '개');
-            
-            // BGS 로드
-            this.bgsList = await this.loadAudioFilesFromFolder('project/audio/bgs');
-            console.log('[loadAudioList] BGS 목록 로드 완료:', this.bgsList.length, '개');
-            
-            // SE 로드
-            this.seList = await this.loadAudioFilesFromFolder('project/audio/se');
-            console.log('[loadAudioList] SE 목록 로드 완료:', this.seList.length, '개');
-            
-            // ME 로드
-            this.meList = await this.loadAudioFilesFromFolder('project/audio/me');
-            console.log('[loadAudioList] ME 목록 로드 완료:', this.meList.length, '개');
-        } catch (error) {
-            console.warn('[loadAudioList] 오디오 목록 로드 실패:', error);
-            this.bgmList = [];
-            this.bgsList = [];
-            this.seList = [];
-            this.meList = [];
-        }
-    }
-
-    async loadAudioFilesFromFolder(folderPath) {
-        try {
-            const response = await fetch(folderPath + '/');
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const links = doc.querySelectorAll('a');
-            
-            const audioFiles = [];
-            const audioExtensions = ['.mp3', '.ogg', '.wav', '.m4a', '.wma'];
-            
-            links.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href) {
-                    const isAudio = audioExtensions.some(ext => href.toLowerCase().endsWith(ext));
-                    if (isAudio) {
-                        const raw = href.split('/').pop();
-                        const decoded = decodeURIComponent(raw);
-                        const filename = decoded.replace(/\.(mp3|ogg|wav|m4a|wma)$/i, '');
-                        audioFiles.push(filename);
-                    }
-                }
-            });
-            
-            return audioFiles.sort();
-        } catch (error) {
-            console.warn(`[loadAudioFilesFromFolder] ${folderPath} 로드 실패:`, error);
-            return [];
-        }
-    }
-
-    async loadSettings() {
-        try {
-            let settings = null;
-
-            // 1. 서버에서 settings.json 로드 시도
-            try {
-                const response = await fetch('project/settings.json');
-                if (response.ok) {
-                    settings = await response.json();
-                    console.log('[loadSettings] 서버에서 설정 로드 완료');
-                }
-            } catch (e) {
-                console.log('[loadSettings] 서버 로드 실패, localStorage 확인');
-            }
-
-            // 2. 서버 로드 실패시 localStorage 사용
-            if (!settings) {
-                const stored = localStorage.getItem('editorSettings');
-                if (stored) {
-                    settings = JSON.parse(stored);
-                    console.log('[loadSettings] localStorage에서 설정 로드 완료');
-                }
-            }
-
-            // 3. 설정 적용
-            if (settings) {
-                this.applySettings(settings);
-            } else {
-                console.log('[loadSettings] 저장된 설정 없음, 기본값 사용');
-            }
-        } catch (error) {
-            console.error('[loadSettings] 설정 로드 중 오류:', error);
-        }
-    }
-
-    // 설정 적용
-    applySettings(settings) {
-        if (settings.fontsize) {
-            const slider = document.getElementById('inspector-font-size');
-            const display = document.getElementById('font-size-display');
-            const inspector = document.getElementById('inspector-main');
-            const fontsize = parseInt(settings.fontsize);
-            
-            console.log('[applySettings] 폰트 크기 적용:', fontsize);
-            
-            if (slider) {
-                slider.value = fontsize;
-                console.log('[applySettings] 슬라이더 값 설정:', fontsize);
-            }
-            
-            if (display) {
-                display.textContent = `${fontsize}px`;
-            }
-            
-            // 인스펙터 요소가 존재하면 실제 폰트 크기 적용
-            if (inspector && this.eventManager && typeof this.eventManager.setInspectorFontSize === 'function') {
-                this.eventManager.setInspectorFontSize(fontsize);
-                console.log('[applySettings] 인스펙터에 폰트 크기 적용 완료:', fontsize);
-            } else {
-                console.warn('[applySettings] 인스펙터 또는 eventManager 사용 불가');
-            }
-        }
-        console.log('[applySettings] 설정 적용 완료');
-    }
-
-    // 개별 설정 저장
-    async updateSetting(key, value) {
-        // 기존 설정 로드
-        let settings = {};
-        const stored = localStorage.getItem('editorSettings');
-        if (stored) {
-            settings = JSON.parse(stored);
-        }
-
-        // 새 값 업데이트
-        settings[key] = value;
-
-        // 저장
-        await this.saveSettings(settings);
-    }
-
-    async loadImages(){
-        await this.loadTilesetImages()
-        await this.loadAllCharacterImages()
-    }
-
-    async loadTilesetImages() {
-        const tilesetRes = await fetch('project/data/Tilesets.json');
-        this.tilesets = await tilesetRes.json();
-
-        for (let tileset of this.tilesets) {
-            if (!tileset) continue;
-
-            const names = tileset.tilesetNames;
-            const promises = names.map((name) => {
-                if (!name) return Promise.resolve(null);
-
-                if (this.images.has(name)) {
-                    return Promise.resolve(this.images.get(name));
-                }
-
-                return new Promise((resolve) => {
-                    const img = new Image();
-                    img.src = `project/img/tilesets/${name}.png`;
-                    img.onload = () => {
-                        this.images.set(name, img);
-                        resolve(img);
-                    };
-                    img.onerror = () => {
-                        console.error(`Failed to load: ${name}`);
-                        resolve(null);
-                    };
-                });
-            });
-
-            await Promise.all(promises);
-        }
-    }
-
-    async loadAllCharacterImages() {
-        try {
-            // 1. 서버에서 characters 디렉토리의 모든 파일 목록 조회
-            const res = await fetch('project/img/characters/');
-            const html = await res.text();
-
-            // 2. HTML에서 파일명 추출 (간단한 정규표현식 사용)
-            const fileRegex = /href=["']([^"']+\.png)["']/gi;
-            const matches = html.matchAll(fileRegex);
-            // href에서 추출된 경로에서 파일명만 추출 (마지막 / 이후 부분)
-            const fileNames = Array.from(matches)
-                .map(match => {
-                    const raw = match[1].split('/').pop();
-                    return decodeURIComponent(raw);
-                })
-                .filter(name => name && name.length > 0);
-
-            // 3. 각 이미지 파일을 병렬로 로드
-            if (fileNames.length > 0) {
-                const promises = fileNames.map(fileName => 
-                    this.loadCharacterImage(fileName)
-                );
-                await Promise.all(promises);
-                console.log(`${fileNames.length}개의 캐릭터 이미지가 로드되었습니다.`);
-            } else {
-                console.warn('캐릭터 이미지를 찾을 수 없습니다.');
-            }
-        } catch (error) {
-            console.warn('캐릭터 이미지 자동 로드 실패 (서버에서 디렉토리 조회를 지원하지 않음):', error);
-            // Fallback: 특정 캐릭터 이미지만 수동으로 로드
-            const defaultCharacters = ['actor1', 'actor2', 'actor3', 'actor4', 'ParSL'];
-            const promises = defaultCharacters.map(name => 
-                this.loadCharacterImage(name)
-            );
-            await Promise.all(promises);
-            console.log(`[loadAllCharacterImages Fallback] 로드된 이미지 목록:`, Array.from(this.images.keys()));
-        }
-    }
-
-    async loadCharacterImage(name) {
-        // 확장자 제거한 이름으로 저장될 키 생성
-        const nameWithoutExt = name.includes('.') ? name.substring(0, name.lastIndexOf('.')) : name;
-        
-        if (!nameWithoutExt) {
-            console.warn(`[loadCharacterImage] 유효하지 않은 이름: ${name}`);
-            return Promise.resolve(null);
-        }
-        
-        if (this.images.has(nameWithoutExt)) {
-            console.log(`[loadCharacterImage] 이미 로드됨: ${nameWithoutExt}`);
-            return Promise.resolve(this.images.get(nameWithoutExt));
-        }
-
-        return new Promise((resolve) => {
-            const img = new Image();
-            // 로드할 때는 확장자 추가
-            const imagePath = name.includes('.') ? name : name + '.png';
-            img.src = `project/img/characters/${imagePath}`;
-            img.onload = () => {
-                // 확장자 없이 저장
-                this.images.set(nameWithoutExt, img);
-                resolve(img);
-            };
-            img.onerror = () => {
-                console.error(`[loadCharacterImage] 로드 실패: ${nameWithoutExt} (경로: project/img/characters/${imagePath})`);
-                resolve(null);
-            };
-        });
-    }
 
     loadMap(id) {
         this.map = this.mapDatas[id]
@@ -600,34 +213,28 @@ class EditorMain {
         
         // 저장할 파일 목록
         const filesToSave = [];
-        
-        // 1. MapInfos.json 저장
-        filesToSave.push({
-            filename: 'MapInfos.json',
-            data: this.mapInfos
+
+        // maps키를 제외하고 모든 데이터 저장
+        Object.keys(this.data).forEach(dataKey => {
+            if (dataKey !== 'maps') {
+                filesToSave.push({
+                    filename: `${dataKey.charAt(0).toUpperCase() + dataKey.slice(1)}.json`,
+                    data: this.data[dataKey]
+                });
+            }
         });
         
         // 2. 모든 맵 데이터 저장
-        Object.keys(this.mapDatas).forEach(mapId => {
+        Object.keys(this.data.maps).forEach(mapId => {
             const mapIdStr = mapId.toString().padStart(3, '0');
             filesToSave.push({
                 filename: `Map${mapIdStr}.json`,
-                data: this.mapDatas[mapId]
+                data: this.data.maps[mapId]
             });
         });
-        
-        // 3. System.json 저장 (스위치/변수 등)
-        if (this.systemData) {
-            filesToSave.push({
-                filename: 'System.json',
-                data: this.systemData
-            });
-        }
         
         // 4. 각 파일 다운로드
-        filesToSave.forEach(file => {
-            this.downloadJSON(file.filename, file.data);
-        });
+        filesToSave.forEach(file => {this.downloadJSON(file.filename, file.data);});
         
         console.log(`${filesToSave.length}개 파일 저장 완료`);
         alert(`${filesToSave.length}개의 데이터 파일이 다운로드되었습니다.\nproject/data/ 폴더에 복사해주세요.`);
