@@ -3,19 +3,47 @@ class TileEditor {
     constructor() {
         this.selectedTilesetTab = 'A'
         this.tilesetViewer = new TilesetViewer('tileset-canvas');
+        this.tabs = document.querySelectorAll('.tab-btn');
     }
 
     init(){
+        this.initTabEvents()
     }
 
     update(){
         this.tilesetViewer.drawTileset(main.data.tilesets[editor.map.tilesetId].tilesetNames,this.selectedTilesetTab);
+    }
+    // 타일셋 뷰
+    initTabEvents() {
+        this.tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // UI 상태 변경
+                this.tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // 타일셋 이미지 변경 및 렌더링 (MapManager에 요청)
+                this.selectedTilesetTab = tab.dataset.tab; // A, B, C, D, E, R
+                if (this.selectedTilesetTab === 'R') {
+                    this.tilesetViewer.drawRegionTileset();
+                } else {
+                    this.tilesetViewer.drawTileset(main.data.tilesets[editor.map.tilesetId].tilesetNames,this.selectedTilesetTab);
+                }
+            });
+        });
     }
 }
 
 class TilesetViewer {
     constructor(canvas) {
         this.canvas = document.getElementById(canvas);
+        this.ctx = this.canvas.getContext('2d');
+    }
+    drawTile(img,x,y,_dx,_dy){
+        const sx = x * main.TILE_SIZE;
+        const sy = y * main.TILE_SIZE;
+        const dx = _dx * main.TILE_SIZE;
+        const dy = _dy * main.TILE_SIZE;
+        this.ctx.drawImage(img, sx, sy, main.TILE_SIZE, main.TILE_SIZE, dx, dy, main.TILE_SIZE, main.TILE_SIZE);
     }
 
     drawTileset(tileset, tabName) {
@@ -27,10 +55,8 @@ class TilesetViewer {
             return;
         }
 
-        const ctx = this.canvas.getContext('2d');
-        const TILE_SIZE = 48;
         const COLUMNS = 8; // 가로 8칸 고정
-        const CANVAS_WIDTH = TILE_SIZE * COLUMNS; // 384px
+        const CANVAS_WIDTH = main.TILE_SIZE * COLUMNS; // 384px
 
         // 탭 이름에 따른 인덱스 설정
         let imgIndex = 0;
@@ -39,49 +65,36 @@ class TilesetViewer {
         if (tabName === 'D') imgIndex = 7;
         if (tabName === 'E') imgIndex = 8;
 
-        const img = main.images.tilesets.get(tileset[imgIndex]);
+        const img = main.images.tilesets.get(tileset[imgIndex]); // 이미지 불러옴
 
         if (img) {
             // 1. 필요한 총 높이 계산
             // 가로가 8칸보다 넓다면, 그만큼 세로로 더 길게 그려야 함
-            const imgCols = img.width / TILE_SIZE;
-            const imgRows = img.height / TILE_SIZE;
+            const imgCols = img.width / main.TILE_SIZE;
+            const imgRows = img.height / main.TILE_SIZE;
             const horizontalChunks = Math.ceil(imgCols / COLUMNS); // 가로로 몇 배 더 넓은가?
             const totalRows = imgRows * horizontalChunks;
 
-            canvas.width = CANVAS_WIDTH;
-            canvas.height = totalRows * TILE_SIZE;
+            this.canvas.width = CANVAS_WIDTH;
+            this.canvas.height = totalRows * main.TILE_SIZE;
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); // clear
 
             // 2. 이미지를 8칸 단위로 쪼개서 그리기
             for (let r = 0; r < imgRows; r++) {
                 for (let c = 0; c < imgCols; c++) {
-                    // 원본 소스 좌표 (img에서 뜯어올 위치)
-                    const sx = c * TILE_SIZE;
-                    const sy = r * TILE_SIZE;
-
                     // 대상 캔버스 좌표 (8칸마다 줄바꿈 발생)
                     // c % 8 은 가로 위치, (r + c/8의 몫 * 원본높이)는 세로 위치
-                    const dx = (c % COLUMNS) * TILE_SIZE;
-                    const dy = (r + Math.floor(c / COLUMNS) * imgRows) * TILE_SIZE;
-
-                    ctx.drawImage(img, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                    this.drawTile(img,c,r,(c % COLUMNS),(r + Math.floor(c / COLUMNS) * imgRows))
                 }
             }
         } else {
-            // 이미지가 없을 경우 캔버스 초기화
-            canvas.width = CANVAS_WIDTH;
-            canvas.height = 0;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             console.warn(`${tabName} 탭(index:${imgIndex})에 해당하는 이미지가 없습니다.`);
         }
     }
     // A 탭 (오토타일) 특수 렌더링
     drawAutotileset(tileset) {
-        const canvas = document.getElementById('tileset-canvas');
-        const ctx = canvas.getContext('2d');
-        const TILE_SIZE = 48;
 
         // A1-A5 이미지 로드
         const imgA1 = main.images.tilesets.get(tileset[0]);
@@ -91,15 +104,15 @@ class TilesetViewer {
         const imgA5 = main.images.tilesets.get(tileset[4]);
         // 캔버스 크기 계산
         let totalHeight = 0;
-        if (imgA1) totalHeight += 2 * TILE_SIZE; // A1: 2행
-        if (imgA2) totalHeight += 4 * TILE_SIZE; // A2: 4행
-        if (imgA3) totalHeight += 4 * TILE_SIZE; // A3: 4행
-        if (imgA4) totalHeight += 6 * TILE_SIZE; // A4: 6행
-        if (imgA5) totalHeight += 16 * TILE_SIZE; // A5: 16행 (일반 타일)
+        if (imgA1) totalHeight += 2 * main.TILE_SIZE; // A1: 2행
+        if (imgA2) totalHeight += 4 * main.TILE_SIZE; // A2: 4행
+        if (imgA3) totalHeight += 4 * main.TILE_SIZE; // A3: 4행
+        if (imgA4) totalHeight += 6 * main.TILE_SIZE; // A4: 6행
+        if (imgA5) totalHeight += 16 * main.TILE_SIZE; // A5: 16행 (일반 타일)
 
-        canvas.width = 8 * TILE_SIZE;
-        canvas.height = totalHeight;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        this.canvas.width = 8 * main.TILE_SIZE;
+        this.canvas.height = totalHeight;
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         let currentY = 0;
 
@@ -110,25 +123,19 @@ class TilesetViewer {
                 [0,6], [6,6], [8,6], [14,6], [0,9], [6,9], [8,9], [14,9]
             ];
             coords.forEach((coord, i) => {
-                const dx = (i % 8) * TILE_SIZE;
-                const dy = currentY + Math.floor(i / 8) * TILE_SIZE;
-                ctx.drawImage(imgA1, coord[0]*TILE_SIZE, coord[1]*TILE_SIZE, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                this.drawTile(imgA1,coord[0],coord[1],(i % 8),Math.floor(i / 8))
             });
-            currentY += 2 * TILE_SIZE;
+            currentY += 2 * main.TILE_SIZE;
         }
 
         // A2 렌더링
         if (imgA2) {
             for (let row = 0; row < 4; row++) {
                 for (let col = 0; col < 8; col++) {
-                    const sx = col * 2 * TILE_SIZE;
-                    const sy = row * 3 * TILE_SIZE;
-                    const dx = col * TILE_SIZE;
-                    const dy = currentY + row * TILE_SIZE;
-                    ctx.drawImage(imgA2, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                    this.drawTile(imgA2,col * 2,row * 3,col,currentY/main.TILE_SIZE + row)
                 }
             }
-            currentY += 4 * TILE_SIZE;
+            currentY += 4 * main.TILE_SIZE;
         }
 
         // A3 렌더링
@@ -136,14 +143,10 @@ class TilesetViewer {
             const yCoords = [0, 2, 4, 6];
             yCoords.forEach((yIdx, row) => {
                 for (let col = 0; col < 8; col++) {
-                    const sx = col * 2 * TILE_SIZE;
-                    const sy = yIdx * TILE_SIZE;
-                    const dx = col * TILE_SIZE;
-                    const dy = currentY + row * TILE_SIZE;
-                    ctx.drawImage(imgA3, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                    this.drawTile(imgA3,col * 2,yIdx,col,currentY/main.TILE_SIZE + row)
                 }
             });
-            currentY += 4 * TILE_SIZE;
+            currentY += 4 * main.TILE_SIZE;
         }
 
         // A4 렌더링
@@ -151,48 +154,66 @@ class TilesetViewer {
             const yCoords = [0, 3, 5, 8, 10, 13];
             yCoords.forEach((yIdx, row) => {
                 for (let col = 0; col < 8; col++) {
-                    const sx = col * 2 * TILE_SIZE;
-                    const sy = yIdx * TILE_SIZE;
-                    const dx = col * TILE_SIZE;
-                    const dy = currentY + row * TILE_SIZE;
-                    ctx.drawImage(imgA4, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                    this.drawTile(imgA4,col * 2,yIdx,col,currentY/main.TILE_SIZE + row)
                 }
             });
-            currentY += 6 * TILE_SIZE;
+            currentY += 6 * main.TILE_SIZE;
         }
 
         // A5 렌더링 (일반 타일처럼)
         if (imgA5) {
-            const imgCols = imgA5.width / TILE_SIZE;
-            const imgRows = imgA5.height / TILE_SIZE;
+            const imgCols = imgA5.width / main.TILE_SIZE;
+            const imgRows = imgA5.height / main.TILE_SIZE;
             for (let r = 0; r < imgRows; r++) {
                 for (let c = 0; c < imgCols; c++) {
-                    const sx = c * TILE_SIZE;
-                    const sy = r * TILE_SIZE;
-                    const dx = (c % 8) * TILE_SIZE;
-                    const dy = currentY + (r + Math.floor(c / 8) * imgRows) * TILE_SIZE;
-                    ctx.drawImage(imgA5, sx, sy, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
+                    this.drawTile(imgA5,c,r,(c % 8),currentY/main.TILE_SIZE + (r + Math.floor(c / 8) * imgRows))
                 }
             }
         }
     }
-    // 타일셋 뷰
-    initTabEvents() {
-        const tabs = document.querySelectorAll('.tab-btn');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                // UI 상태 변경
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-
-                // 타일셋 이미지 변경 및 렌더링 (MapManager에 요청)
-                this.selectedTilesetTab = tab.dataset.tab; // A, B, C, D, E, R
-                if (this.selectedTilesetTab === 'R') {
-                    this.drawRegionTileset();
-                } else {
-                    this.drawTileset();
-                }
-            });
-        });
+    // R 탭 (지역번호) 그리기
+    drawRegionTileset() {
+        
+        // 16x16 그리드 (256칸, 0~255)
+        this.canvas.width = 8 * main.TILE_SIZE;
+        this.canvas.height = 32 * main.TILE_SIZE;
+        
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 색상 배열 (빨주노연초청하파남보자핑)
+        const colors = [
+            '#ff5353', // 빨
+            '#ffa64c', // 주
+            '#ffff43', // 노
+            '#a8ff51', // 연
+            '#33ff3d', // 초
+            '#57ff8f', // 청
+            '#3db1ff', // 하
+            '#3e3bff', // 파
+            '#6034ff', // 남
+            '#a443ff', // 보
+            '#ff5b7e', // 자
+            '#ff9fcf'  // 핑
+        ];
+        
+        // 1~255 타일 그리기 (0은 비워둠)
+        for (let i = 1; i <= 255; i++) {
+            const x = (i % 8);
+            const y = Math.floor(i / 8);
+            const dx = x * main.TILE_SIZE;
+            const dy = y * main.TILE_SIZE;
+            
+            // 색상 배경
+            const colorIdx = (i - 1) % colors.length;
+            this.ctx.fillStyle = colors[colorIdx];
+            this.ctx.fillRect(dx + 2, dy + 2, main.TILE_SIZE - 4, main.TILE_SIZE - 4);
+            
+            // 숫자 표시
+            this.ctx.fillStyle = '#000';
+            this.ctx.font = 'bold 16px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(i.toString(), dx + main.TILE_SIZE / 2, dy + main.TILE_SIZE / 2);
+        }
     }
 }

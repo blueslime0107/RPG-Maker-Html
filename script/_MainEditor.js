@@ -844,54 +844,6 @@ class MainEditor {
 
 
 
-    // R 탭 (지역번호) 그리기
-    drawRegionTileset() {
-        const canvas = document.getElementById('tileset-canvas');
-        const ctx = canvas.getContext('2d');
-        const TILE_SIZE = 48;
-        
-        // 16x16 그리드 (256칸, 0~255)
-        canvas.width = 16 * TILE_SIZE;
-        canvas.height = 16 * TILE_SIZE;
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 색상 배열 (빨주노연초청하파남보자핑)
-        const colors = [
-            '#FF0000', // 빨
-            '#FF7F00', // 주
-            '#FFFF00', // 노
-            '#7FFF00', // 연
-            '#00FFFF', // 초
-            '#0000FF', // 청
-            '#4B0082', // 하
-            '#9400D3', // 파
-            '#8B0000', // 남
-            '#9370DB', // 보
-            '#800080', // 자
-            '#FF69B4'  // 핑
-        ];
-        
-        // 1~255 타일 그리기 (0은 비워둠)
-        for (let i = 1; i <= 255; i++) {
-            const x = (i % 16);
-            const y = Math.floor(i / 16);
-            const dx = x * TILE_SIZE;
-            const dy = y * TILE_SIZE;
-            
-            // 색상 배경
-            const colorIdx = (i - 1) % colors.length;
-            ctx.fillStyle = colors[colorIdx];
-            ctx.fillRect(dx + 2, dy + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-            
-            // 숫자 표시
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(i.toString(), dx + TILE_SIZE / 2, dy + TILE_SIZE / 2);
-        }
-    }
 
     initTilesetEvents() {
         const tsCanvas = document.getElementById('tileset-canvas');

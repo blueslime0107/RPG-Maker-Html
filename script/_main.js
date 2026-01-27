@@ -33,6 +33,9 @@ class Main {
 
         this.editor = new MainEditor();
         this.init();
+
+        // 상수
+        this.TILE_SIZE = 48
     }
 
     async init() {
