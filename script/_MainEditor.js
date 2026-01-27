@@ -151,7 +151,6 @@ class MainEditor {
         const resizer = document.getElementById('tileset-map-resizer');
         const tilesetWindow = document.getElementById('tileset-window');
         const mapManagement = document.getElementById('map-management');
-        const mapPanel = document.getElementById('panel-header');
         let isResizing = false;
         let lastY = 0;
 
@@ -178,9 +177,12 @@ class MainEditor {
             if (newHeight >= 200 && newHeight <= parentHeight * 0.8) {
                 tilesetWindow.style.flex = 'none';
                 tilesetWindow.style.height = newHeight + 'px';
-                // TODO: tilesetWindo의 height가 작아지는만큼
-                // mapPanel이 그 하단을 채우는 정도로 스케일 설정
-                mapPanel.style.height = 
+                // tilesetWindow의 height가 작아지는만큼
+                // mapManagement가 그 하단을 채우는 정도로 높이 설정
+                const resizerHeight = resizer.offsetHeight;
+                const remainingHeight = parentHeight - newHeight - resizerHeight;
+                mapManagement.style.flex = 'none';
+                mapManagement.style.height = remainingHeight + 'px';
                 lastY = e.clientY;
             }
         });
