@@ -8,11 +8,10 @@ class TileEditor {
 
     init(){
         this.initTabEvents()
+        this.initLayerEvents()
+        this.initToolEvents()
     }
 
-    update(){
-        this.tilesetViewer.drawTileset(main.data.tilesets[editor.map.tilesetId].tilesetNames,this.selectedTilesetTab);
-    }
     // 타일셋 뷰
     initTabEvents() {
         this.tabs.forEach(tab => {
@@ -31,6 +30,54 @@ class TileEditor {
             });
         });
     }
+
+    // 레이어 선택 이벤트
+    initLayerEvents() {
+        const layerBtns = document.querySelectorAll('.layer-btn');
+        layerBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // UI 상태 변경
+                layerBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // 레이어 선택 값 업데이트
+                this.selectedLayer = btn.dataset.layer; // 'auto', '0', '1', '2', '3'
+                console.log(`레이어 선택: ${this.selectedLayer}`);
+                
+                // MapLoader의 하이라이트 모드 변경
+                if (main.mapManager && main.mapManager.loader) {
+                    main.mapManager.loader.setHighlightMode(this.selectedLayer);
+                }
+            });
+        });
+    }
+
+    // 툴 버튼 이벤트
+    initToolEvents() {
+        const toolBtns = document.querySelectorAll('.tool-btn');
+        toolBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tool = btn.dataset.tool;
+                
+                // reset-zoom은 즉시 실행
+                if (tool === 'reset-zoom') {
+                    this.resetMapZoom();
+                    return;
+                }
+                
+                // UI 상태 변경
+                toolBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                this.selectedTool = tool;
+                console.log(`툴 선택: ${this.selectedTool}`);
+            });
+        });
+    }
+    
+    update(){
+        this.tilesetViewer.drawTileset(main.data.tilesets[editor.map.tilesetId].tilesetNames,this.selectedTilesetTab);
+    }
 }
 
 class TilesetViewer {
@@ -38,6 +85,7 @@ class TilesetViewer {
         this.canvas = document.getElementById(canvas);
         this.ctx = this.canvas.getContext('2d');
     }
+
     drawTile(img,x,y,_dx,_dy){
         const sx = x * main.TILE_SIZE;
         const sy = y * main.TILE_SIZE;
