@@ -2,6 +2,7 @@
 class TileEditor {
     constructor() {
         this.selectedTile = null
+        this.selectedTool = 'pen' // pen, fill, select
         this.selectRect = document.getElementById('tileset-selection-rect');
         this.selectedTilesetTab = 'A'
         this.tilesetViewer = new TilesetViewer('tileset-canvas');
@@ -136,13 +137,9 @@ class TileEditor {
     // 선택된 타일범위 표시
     updateTilesetSelection(x1, y1, x2, y2) {
         if(x1 == -1){ // 리셋
-            this.selectedTile = {}
-            this.selectRect.style.display = 'none';
-            this.selectRect.style.width = 0
-            this.selectRect.style.height = 0
+            this.updateSelectedTile(-1)
             return
         }
-
         // 시작점과 끝점 중 작은 값을 왼쪽 위 좌표로 사용
         const left = Math.min(x1, x2);
         const top = Math.min(y1, y2);
@@ -153,28 +150,32 @@ class TileEditor {
         const height = (bottom - top + 1);
 
         // 시각적 업데이트
-        this.selectRect.style.display = 'block';
-        this.selectRect.style.left = (left * 48 ) + 'px'; // 테두리 두께 보정
-        this.selectRect.style.top = (top * 48 ) + 'px';
-        this.selectRect.style.width = (width * 48 ) + 'px';
-        this.selectRect.style.height = (height * 48 ) + 'px';
+        this.updateSelectedTile(left, top, width, height);
+    }
 
-        // 선택된 타일 정보 저장 (다중 타일 지원)
+    updateSelectedTile(x,y,w,h){
+        if(x == -1){ // 리셋
+            this.selectedTile = {}
+            this.selectRect.style.display = 'none';
+            this.selectRect.style.width = 0
+            this.selectRect.style.height = 0
+            return
+        }
         this.selectedTile = {
             tab: this.selectedTilesetTab,
-            x: left,
-            y: top,
-            w: width,
-            h: height
+            x,y,w,h
         };
-
-        // R 탭(리전)인 경우 regionId 추가
         if (this.selectedTilesetTab === 'R') {
-            const regionId = top * 8 + left + 1; // 1-255 범위
+            const regionId = y * 8 + x + 1; // 1-255 범위
             if (regionId >= 1 && regionId <= 255) {
                 this.selectedTile.regionId = regionId;
             }
         }
+        this.selectRect.style.display = 'block';
+        this.selectRect.style.left = (x * 48 ) + 'px'; // 테두리 두께 보정
+        this.selectRect.style.top = (y * 48 ) + 'px';
+        this.selectRect.style.width = (w * 48 ) + 'px';
+        this.selectRect.style.height = (h * 48 ) + 'px';
     }
 }
 

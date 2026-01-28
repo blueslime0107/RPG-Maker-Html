@@ -243,6 +243,13 @@ class MapListEditor {
             document.addEventListener('click', closeMenu);
         }, 0);
     }
+    // 컨텍스트 메뉴 닫기
+    closeContextMenu() {
+        const menu = document.getElementById('map-context-menu');
+        if (menu) {
+            menu.remove();
+        }
+    }
 
     openEditModal(node) {
         // 1. 기존 모달이 있으면 제거

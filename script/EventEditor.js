@@ -294,70 +294,6 @@ class EventEditor {
         });
     }
 
-    // 빈 공간 우클릭 메뉴
-    showMapContextMenu(x, y, tileX, tileY) {
-        console.log("tileX", tileX, "tileY", tileY)
-        this.closeContextMenu();
-
-        const menu = document.createElement('div');
-        menu.id = 'event-context-menu';
-        Object.assign(menu.style, {
-            position: 'fixed',
-            left: `${x}px`,
-            top: `${y}px`,
-            backgroundColor: '#2b2b2b',
-            color: '#eee',
-            border: '1px solid #555',
-            padding: '4px 0',
-            zIndex: '9999',
-            fontSize: '13px',
-            boxShadow: '2px 2px 10px rgba(0,0,0,0.4)',
-            minWidth: '150px'
-        });
-
-        const options = [
-            {
-                label: '플레이어',
-                action: () => this.setPlayerStart(tileX, tileY)
-            },
-            {
-                label: '이벤트 생성',
-                action: () => this.createEvent(tileX, tileY)
-            },
-            {
-                label: '붙여넣기 (Ctrl+V)',
-                action: () => this.pasteEvent(tileX, tileY),
-                disabled: !this.clipboard
-            }
-        ];
-
-        options.forEach(opt => {
-            const div = document.createElement('div');
-            div.innerText = opt.label;
-            Object.assign(div.style, {
-                padding: '6px 20px',
-                cursor: opt.disabled ? 'default' : 'pointer',
-                opacity: opt.disabled ? '0.4' : '1'
-            });
-
-            if (!opt.disabled) {
-                div.onmouseover = () => div.style.backgroundColor = '#444';
-                div.onmouseout = () => div.style.backgroundColor = 'transparent';
-                div.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (typeof opt.action === 'function') {
-                        opt.action();
-                    }
-                    menu.remove();
-                };
-            }
-            menu.appendChild(div);
-        });
-
-        document.body.appendChild(menu);
-        this.setupMenuClose(menu);
-    }
 
     // 이벤트 우클릭 메뉴 표시
     showEventContextMenu(x, y, event) {
@@ -419,15 +355,6 @@ class EventEditor {
 
         document.body.appendChild(menu);
         this.setupMenuClose(menu);
-    }
-
-    closeContextMenu() {
-        console.log("clear")
-        main.editorUI.clearBlueCircle();
-        const menu = document.getElementById('event-context-menu');
-        if (menu) menu.remove();
-        const cmdMenu = document.getElementById('command-context-menu');
-        if (cmdMenu) cmdMenu.remove();
     }
 
     setupMenuClose(menu) {
