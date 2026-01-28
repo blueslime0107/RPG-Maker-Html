@@ -1,7 +1,7 @@
 
 class TileEditor {
     constructor() {
-        this.selectedTile = {}
+        this.selectedTile = null
         this.selectRect = document.getElementById('tileset-selection-rect');
         this.selectedTilesetTab = 'A'
         this.tilesetViewer = new TilesetViewer('tileset-canvas');
@@ -80,55 +80,6 @@ class TileEditor {
                 console.log(`툴 선택: ${this.selectedTool}`);
             });
         });
-    }
- 
-
-    // A 탭에서 선택한 Y 좌표로 A1/A2/A3/A4/A5 섹션 판단
-    determineASection(y) {
-        const tileset = main.mapManager.tileset;
-        if (!tileset) return 'A5';
-
-        const imgA1 = main.images.get(tileset.tilesetNames[0]);
-        const imgA2 = main.images.get(tileset.tilesetNames[1]);
-        const imgA3 = main.images.get(tileset.tilesetNames[2]);
-        const imgA4 = main.images.get(tileset.tilesetNames[3]);
-
-        let currentRow = 0;
-        
-        // A1: 2행
-        if (imgA1) {
-            if (y < currentRow + 2) {
-                return { section: 'A1', localY: y - currentRow };
-            }
-            currentRow += 2;
-        }
-        
-        // A2: 4행
-        if (imgA2) {
-            if (y < currentRow + 4) {
-                return { section: 'A2', localY: y - currentRow };
-            }
-            currentRow += 4;
-        }
-        
-        // A3: 4행
-        if (imgA3) {
-            if (y < currentRow + 4) {
-                return { section: 'A3', localY: y - currentRow };
-            }
-            currentRow += 4;
-        }
-        
-        // A4: 6행
-        if (imgA4) {
-            if (y < currentRow + 6) {
-                return { section: 'A4', localY: y - currentRow };
-            }
-            currentRow += 6;
-        }
-        
-        // A5: 나머지
-        return { section: 'A5', localY: y - currentRow };
     }
 
     initTilesetEvents() {
@@ -216,11 +167,6 @@ class TileEditor {
             w: width,
             h: height
         };
-
-        // A 탭인 경우 섹션 정보 추가
-        if (this.selectedTilesetTab === 'A') {
-            this.selectedTile.aSection = this.determineASection(top);
-        }
 
         // R 탭(리전)인 경우 regionId 추가
         if (this.selectedTilesetTab === 'R') {

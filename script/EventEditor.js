@@ -138,63 +138,6 @@ class EventEditor {
         ctx.fillText('P', dx + 4, dy + 14);
     }
 
-    drawCharacter(event, x, y) {
-        const TILE_SIZE = 48;
-        const dx = x * TILE_SIZE;
-        const dy = y * TILE_SIZE;
-        const info = event.pages[0].image
-        const canvas = document.getElementById('event-overlay-canvas');
-        const ctx = canvas.getContext('2d');
-
-        let img = null
-        if (info.tileId) {
-            const tile = main.mapManager.loader.getNormalTile(info.tileId)
-            console.log(ctx)
-            ctx.drawImage(
-                tile.img,
-                tile.sx, tile.sy, TILE_SIZE, TILE_SIZE,
-                dx, // 가로 중앙 정렬
-                dy,       // 발끝을 타일 바닥에 맞춤
-                TILE_SIZE, TILE_SIZE
-            );
-        }
-        else if (info.characterName) {
-            img = main.images.get(info.characterName);
-            // $로 시작하면 단일 캐릭터(3x4), 아니면 8인용(12x8)
-            const isBig = info.characterName.startsWith('$');
-
-            // 전체 이미지 크기를 기준으로 한 칸의 크기 계산
-            const charW = isBig ? img.width / 3 : img.width / 12;
-            const charH = isBig ? img.height / 4 : img.height / 8;
-
-            // characterIndex(0~7)에 따른 시트 내 시작 위치 (X: 0~3, Y: 0~1)
-            const col = isBig ? 0 : (info.characterIndex % 4);
-            const row = isBig ? 0 : Math.floor(info.characterIndex / 4);
-
-            // 방향(direction)과 애니메이션 패턴(pattern)
-            // pattern: 0(왼발), 1(중앙), 2(오른발)
-            // direction: 2(하), 4(좌), 6(우), 8(상) -> 각각 시트의 0, 1, 2, 3번째 줄
-            const pattern = info.pattern !== undefined ? info.pattern : 1;
-            const direction = info.direction !== undefined ? info.direction : 2;
-            const sx = (col * 3 + pattern) * charW;
-            const sy = (row * 4 + (direction / 2 - 1)) * charH;
-            ctx.drawImage(
-                img,
-                sx, sy, charW, charH,
-                dx + (TILE_SIZE - charW) / 2, // 가로 중앙 정렬
-                dy + TILE_SIZE - charH,       // 발끝을 타일 바닥에 맞춤
-                charW, charH
-            );
-        }
-        ctx.strokeStyle = 'rgba(0, 140, 255, 1)';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-
-        // 이벤트 ID 표시
-        ctx.fillStyle = 'white';
-        ctx.font = '10px sans-serif';
-        ctx.fillText(event.id, dx + 4, dy + 14);
-    }
 
     // 1. 우클릭 감지 초기화
     initClickEvent() {

@@ -6,6 +6,7 @@ class MainEditor {
         this.loadMapId = 1; // 기본 로드 맵 ID
         this.map = null;
         this.mapInfo = null;
+        this.events = [];
 
 
         // 인스턴스
@@ -60,14 +61,17 @@ class MainEditor {
         this.initInspectorResizer();
         this.initTilesetMapResizer();
         this.tileEditor.init()
+        this.mapviewer.init()
         this.mapListEditor.init()
     }
     
     loadMap(id) {
         this.map = main.data.maps[id]
         this.mapInfo = main.data.mapInfos[id]
+        this.events = this.map.events.filter(x => x != null);
 
         this.tileEditor.update()
+        this.mapviewer.update()
         // this.mapManager.loadMap(this.map)
 
         // // 맵 로드 후 캔버스 크기가 확정되면 오버레이 캔버스 크기 조정
@@ -82,6 +86,10 @@ class MainEditor {
         
         // 현재 맵 ID를 localStorage에 저장
         localStorage.setItem('lastMapId', id);
+    }
+
+    getTilesetFromMap(mapData) {
+        return main.data.tilesets[mapData.tilesetId]
     }
 
     // 툴바 버튼 이벤트 초기화
@@ -206,150 +214,14 @@ class MainEditor {
     // 줌 레벨 표시 업데이트
     updateZoomDisplay() {
         const mapInfo = document.getElementById('map-info');
-        if (mapInfo && main.map) {
-            const mapName = main.mapInfo ? main.mapInfo.name : 'Map000';
-            const mapSize = `${main.map.width}x${main.map.height}`;
-            const zoomPercent = (this.mapZoom * 100).toFixed(0);
+        if (this.map) {
+            const mapName = this.mapInfo ? this.mapInfo.name : 'Map000';
+            const mapSize = `${this.map.width}x${this.map.height}`;
+            const zoomPercent = (this.mapviewer.mapZoom * 100).toFixed(0);
             mapInfo.textContent = `${mapName} (${mapSize}) - ${zoomPercent}%`;
         }
     }
 
 
-    // 맵 뷰
-    // EditorUI 클래스 내의 initMouseOverlay 메서드 수정
 
-    initMouseOverlay() {
-        const canvas = this.canvas;
-        const overlay = this.overlay;
-        const ctx = overlay.getContext('2d');
-
-        canvas.addEventListener('mousemove', (e) => {
-            // overlay 캔버스 크기를 map-canvas와 동일하게 유지
-            if (overlay.width !== canvas.width || overlay.height !== canvas.height) {
-                overlay.width = canvas.width;
-                overlay.height = canvas.height;
-            }
-            
-            // zoom/pan을 고려한 타일 좌표 계산
-            const { x: tileX, y: tileY } = this.getMapCoordinates(e.clientX, e.clientY);
-            
-            // 현재 마우스 위치 저장
-            this.currentMouseTile = { x: tileX, y: tileY };
-            
-            // 맵 범위 밖이면 선택범위 안 그림
-            const isInMap = main.map && tileX >= 0 && tileX < main.map.width && tileY >= 0 && tileY < main.map.height;
-            
-            // 전체 지우기
-            ctx.clearRect(0, 0, overlay.width, overlay.height);
-            
-            // 1. 선택범위 그리기 (마우스가 맵 안에 있을 때)
-            if (isInMap) {
-                const tw = this.selectedTile ? this.selectedTile.w : 1;
-                const th = this.selectedTile ? this.selectedTile.h : 1;
-
-                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.fillRect(tileX * 48, tileY * 48, tw * 48, th * 48);
-
-                // 다중 선택 시 내부 격자 가이드
-                if (tw > 1 || th > 1) {
-                    ctx.beginPath();
-                    ctx.setLineDash([4, 4]);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.lineWidth = 1;
-                    for (let i = 1; i < th; i++) {
-                        ctx.moveTo(tileX * 48, (tileY + i) * 48);
-                        ctx.lineTo((tileX + tw) * 48, (tileY + i) * 48);
-                    }
-                    for (let i = 1; i < tw; i++) {
-                        ctx.moveTo((tileX + i) * 48, tileY * 48);
-                        ctx.lineTo((tileX + i) * 48, (tileY + th) * 48);
-                    }
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-            }
-            
-            // 2. 파란원 그리기 (바로가기 메뉴가 있을 때)
-            if (this.blueCircleVisible && this.blueCirclePosition) {
-                const centerX = this.blueCirclePosition.x * 48 + 24;
-                const centerY = this.blueCirclePosition.y * 48 + 24;
-                const radius = 20;
-                
-                ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
-                ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
-                ctx.lineWidth = 3;
-                
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-            }
-        });
-
-        canvas.addEventListener('mouseleave', () => {
-            // 마우스가 맵 밖으로 나가면 무조건 선택 사각형 제거
-            this.currentMouseTile = null;
-            
-            // 전체 다시 그리기
-            ctx.clearRect(0, 0, overlay.width, overlay.height);
-            
-            // 파란원만 다시 그리기 (바로가기 메뉴가 있으면)
-            if (this.blueCircleVisible && this.blueCirclePosition) {
-                const centerX = this.blueCirclePosition.x * 48 + 24;
-                const centerY = this.blueCirclePosition.y * 48 + 24;
-                const radius = 20;
-                
-                ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
-                ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
-                ctx.lineWidth = 3;
-                
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-            }
-        });
-    }
-
-
-    // 화면 좌표를 맵 좌표로 변환 (확대/축소/패닝 반영)
-    getMapCoordinates(clientX, clientY) {
-        const canvas = this.canvas;
-        const container = document.getElementById('map-grid-container');
-        const mapEditor = document.getElementById('map-editor');
-        
-        // map-editor의 화면 위치
-        const editorRect = mapEditor.getBoundingClientRect();
-        
-        // container의 offset (map-editor 내부에서의 위치)
-        const containerOffsetX = container.offsetLeft;
-        const containerOffsetY = container.offsetTop;
-        
-        // 마우스의 map-editor 내부 좌표
-        const mouseInEditor = {
-            x: clientX - editorRect.left,
-            y: clientY - editorRect.top
-        };
-        
-        // container 기준으로 변환 (container의 offset 제거)
-        let x = mouseInEditor.x - containerOffsetX;
-        let y = mouseInEditor.y - containerOffsetY;
-        
-        // transform 역변환
-        // CSS: scale(zoom) translate(panX, panY)
-        // 이는 point' = zoom * (point + pan)와 동일
-        // 역변환: point = (point' / zoom) - pan
-        x = (x / this.mapZoom) - this.mapPanX;
-        y = (y / this.mapZoom) - this.mapPanY;
-
-        // 타일 좌표로 변환
-        return {
-            x: Math.floor(x / 48),
-            y: Math.floor(y / 48)
-        };
-    }
 }
