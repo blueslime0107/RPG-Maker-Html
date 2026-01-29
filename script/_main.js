@@ -34,8 +34,6 @@ class Main {
         this.editor = new MainEditor();
         this.init();
 
-        // 상수
-        this.TILE_SIZE = 48
     }
 
     async init() {
@@ -220,9 +218,15 @@ var main
 var editor
 /** @type {EventManager} */
 var em
+/** @type {MapViewer} */
+var mapViewer
+/** @type {TileEditor} */
+var tileEditor
 // 에디터 실행
 window.onload = () => {
     window.main = new Main();
     window.editor = main.editor;
     window.em = main.eventManager
+    window.mapViewer = main.editor.mapviewer
+    window.tileEditor = main.editor.tileEditor
 };

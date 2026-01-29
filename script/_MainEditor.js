@@ -1,5 +1,100 @@
 
 
+const A1_AUTOTILE_TYPE_MAP = [
+    ['floor', 'floor', 'floor', 'fixed', 'floor', 'floor', 'floor', 'floor'], // 첫 번째 행
+    ['floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor']  // 두 번째 행
+];
+
+const FLOOR_AUTOTILE_TABLE = [
+    [[2, 4], [1, 4], [2, 3], [1, 3]],
+    [[2, 0], [1, 4], [2, 3], [1, 3]],
+    [[2, 4], [3, 0], [2, 3], [1, 3]],
+    [[2, 0], [3, 0], [2, 3], [1, 3]],
+    [[2, 4], [1, 4], [2, 3], [3, 1]],
+    [[2, 0], [1, 4], [2, 3], [3, 1]],
+    [[2, 4], [3, 0], [2, 3], [3, 1]],
+    [[2, 0], [3, 0], [2, 3], [3, 1]],
+    [[2, 4], [1, 4], [2, 1], [1, 3]],
+    [[2, 0], [1, 4], [2, 1], [1, 3]],
+    [[2, 4], [3, 0], [2, 1], [1, 3]],
+    [[2, 0], [3, 0], [2, 1], [1, 3]],
+    [[2, 4], [1, 4], [2, 1], [3, 1]],
+    [[2, 0], [1, 4], [2, 1], [3, 1]],
+    [[2, 4], [3, 0], [2, 1], [3, 1]],
+    [[2, 0], [3, 0], [2, 1], [3, 1]],
+    [[0, 4], [1, 4], [0, 3], [1, 3]],
+    [[0, 4], [3, 0], [0, 3], [1, 3]],
+    [[0, 4], [1, 4], [0, 3], [3, 1]],
+    [[0, 4], [3, 0], [0, 3], [3, 1]],
+    [[2, 2], [1, 2], [2, 3], [1, 3]],
+    [[2, 2], [1, 2], [2, 3], [3, 1]],
+    [[2, 2], [1, 2], [2, 1], [1, 3]],
+    [[2, 2], [1, 2], [2, 1], [3, 1]],
+    [[2, 4], [3, 4], [2, 3], [3, 3]],
+    [[2, 4], [3, 4], [2, 1], [3, 3]],
+    [[2, 0], [3, 4], [2, 3], [3, 3]],
+    [[2, 0], [3, 4], [2, 1], [3, 3]],
+    [[2, 4], [1, 4], [2, 5], [1, 5]],
+    [[2, 0], [1, 4], [2, 5], [1, 5]],
+    [[2, 4], [3, 0], [2, 5], [1, 5]],
+    [[2, 0], [3, 0], [2, 5], [1, 5]],
+    [[0, 4], [3, 4], [0, 3], [3, 3]],
+    [[2, 2], [1, 2], [2, 5], [1, 5]],
+    [[0, 2], [1, 2], [0, 3], [1, 3]],
+    [[0, 2], [1, 2], [0, 3], [3, 1]],
+    [[2, 2], [3, 2], [2, 3], [3, 3]],
+    [[2, 2], [3, 2], [2, 1], [3, 3]],
+    [[2, 4], [3, 4], [2, 5], [3, 5]],
+    [[2, 0], [3, 4], [2, 5], [3, 5]],
+    [[0, 4], [1, 4], [0, 5], [1, 5]],
+    [[0, 4], [3, 0], [0, 5], [1, 5]],
+    [[0, 2], [3, 2], [0, 3], [3, 3]],
+    [[0, 2], [1, 2], [0, 5], [1, 5]],
+    [[0, 4], [3, 4], [0, 5], [3, 5]],
+    [[2, 2], [3, 2], [2, 5], [3, 5]],
+    [[0, 2], [3, 2], [0, 5], [3, 5]],
+    [[0, 0], [1, 0], [0, 1], [1, 1]]
+];
+
+const WALL_AUTOTILE_TABLE = [
+    [[2, 2], [1, 2], [2, 1], [1, 1]],
+    [[0, 2], [1, 2], [0, 1], [1, 1]],
+    [[2, 0], [1, 0], [2, 1], [1, 1]],
+    [[0, 0], [1, 0], [0, 1], [1, 1]],
+    [[2, 2], [3, 2], [2, 1], [3, 1]],
+    [[0, 2], [3, 2], [0, 1], [3, 1]],
+    [[2, 0], [3, 0], [2, 1], [3, 1]],
+    [[0, 0], [3, 0], [0, 1], [3, 1]],
+    [[2, 2], [1, 2], [2, 3], [1, 3]],
+    [[0, 2], [1, 2], [0, 3], [1, 3]],
+    [[2, 0], [1, 0], [2, 3], [1, 3]],
+    [[0, 0], [1, 0], [0, 3], [1, 3]],
+    [[2, 2], [3, 2], [2, 3], [3, 3]],
+    [[0, 2], [3, 2], [0, 3], [3, 3]],
+    [[2, 0], [3, 0], [2, 3], [3, 3]],
+    [[0, 0], [3, 0], [0, 3], [3, 3]]
+];
+
+const WATERFALL_AUTOTILE_TABLE = [
+    [[2, 0], [1, 0], [2, 1], [1, 1]],
+    [[0, 0], [1, 0], [0, 1], [1, 1]],
+    [[2, 0], [3, 0], [2, 1], [3, 1]],
+    [[0, 0], [3, 0], [0, 1], [3, 1]]
+];
+
+const TILE_ID_B = 0;
+const TILE_ID_C = 256;
+const TILE_ID_D = 512;
+const TILE_ID_E = 768;
+const TILE_ID_A5 = 1536;
+const TILE_ID_A1 = 2048;
+const TILE_ID_A2 = 2816;
+const TILE_ID_A3 = 4352;
+const TILE_ID_A4 = 5888;
+const TILE_ID_MAX = 8192;
+        // 상수
+const TILE_SIZE = 48
+
 class MainEditor {
     constructor() {
 
@@ -7,6 +102,8 @@ class MainEditor {
         this.map = null;
         this.mapInfo = null;
         this.events = [];
+
+        // 타일 ID 상수
 
 
         // 인스턴스
@@ -91,6 +188,26 @@ class MainEditor {
     getTilesetFromMap(mapData) {
         return main.data.tilesets[mapData.tilesetId]
     }
+
+    // 특정 좌표의 레이어 타일값 조회 함수
+    getTileIndex(x, y, layerIdx) {
+        return (layerIdx * this.map.width * this.map.height) + (y * this.map.width) + x;
+    }
+
+    // 통합 맵 데이터 접근 헬퍼 (읽기)
+    mapData(x, y, layerIdx) {
+        return this.map.data[this.getTileIndex(x, y, layerIdx)];
+    }
+
+    // 통합 맵 데이터 설정 헬퍼 (쓰기)
+    setMapData(x, y, layerIdx, value) {
+        this.map.data[this.getTileIndex(x, y, layerIdx)] = value;
+    }
+
+    isNotOnMap(x, y) {
+        return x < 0 || x >= this.map.width || y < 0 || y >= this.map.height
+    }
+
 
     // 툴바 버튼 이벤트 초기화
     initToolbarButtons() {
@@ -222,6 +339,77 @@ class MainEditor {
         }
     }
 
+    // 타일 분류 메소드
+    isAutotile(tileId) {
+        return tileId >= TILE_ID_A1;
+    }
 
+    isTileA1(tileId) {
+        return tileId >= TILE_ID_A1 && tileId < TILE_ID_A2;
+    }
+
+    isTileA2(tileId) {
+        return tileId >= TILE_ID_A2 && tileId < TILE_ID_A3;
+    }
+
+    isTileA3(tileId) {
+        return tileId >= TILE_ID_A3 && tileId < TILE_ID_A4;
+    }
+
+    isTileA4(tileId) {
+        return tileId >= TILE_ID_A4 && tileId < TILE_ID_MAX;
+    }
+
+    isTileA5(tileId) {
+        return tileId >= TILE_ID_A5 && tileId < TILE_ID_A1;
+    }
+
+    isTileB(tileId) {
+        return tileId >= TILE_ID_B && tileId < TILE_ID_C;
+    }
+
+    isTileC(tileId) {
+        return tileId >= TILE_ID_C && tileId < TILE_ID_D;
+    }
+
+    isTileD(tileId) {
+        return tileId >= TILE_ID_D && tileId < TILE_ID_E;
+    }
+
+    isTileE(tileId) {
+        return tileId >= TILE_ID_E && tileId < TILE_ID_A5;
+    }
+
+    getAutotileKind(tileId) {
+        return Math.floor((tileId - TILE_ID_A1) / 48);
+    }
+
+    getAutotileShape(tileId) {
+        return (tileId - TILE_ID_A1) % 48;
+    }
+    // 오토타일의 base ID 추출
+    getAutotileBaseId(tileId) {
+        if (this.isAutotile(tileId)) {
+            return Math.floor((tileId - TILE_ID_A1) / 48) * 48 + TILE_ID_A1;
+        }
+        return tileId;
+    }
+    // A1 타일의 오토타일 타입 반환 ('floor', 'wall', 'waterfall', 'fixed')
+    getA1AutotileType(tileId) {
+        if (this.isTileA1(tileId)) {
+            const tileIndex = Math.floor((tileId - TILE_ID_A1) / 48);
+            const row = Math.floor(tileIndex / 8);
+            const col = tileIndex % 8;
+
+            if (row < 2 && col < 8) {
+                return A1_AUTOTILE_TYPE_MAP[row][col];
+            }
+        }
+        return 'floor'; // 기본값
+    }
+
+    isShadowingTile(tileId) {
+        return this.isTileA3(tileId) || this.isTileA4(tileId);
+    }
 
 }

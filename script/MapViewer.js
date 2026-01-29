@@ -10,10 +10,9 @@ class MapViewer {
         this.mapOverlayCtx = this.mapOverlay.getContext('2d');
         this.tileset = null;
         this.tilesets = null;
-        this.loader = new MapLoader();
 
         this.events = [];
-        this.currentMouseTile = {x:0,y:0}
+        this.mousePos = {x:0,y:0}
         this.mapZoom = 1
         this.mapPanX = 0;
         this.mapPanY = 0;
@@ -21,23 +20,61 @@ class MapViewer {
         this.rectSelectPos = null;
         this.isPainting = false;
 
-        this.loader = new MapLoader();
+        this.loader = new MapLoader(this.mapCanvas,this.ctx);
     }
+
+    get x(){return this.mousePos.x}
+    get y(){return this.mousePos.y}
 
     get map(){return editor.map}
 
-    get selectedTile(){return editor.tileEditor.selectedTile}
+    get selectedLayer(){return editor.tileEditor.layer}
+    get selectedTile(){return editor.tileEditor.tile}
+    get selectedTool(){return editor.tileEditor.tool}
 
     init() {
-        this.initOverlay()
-        this.initInputEvents()
+        this.initEventListeners()
     }
 
-    initOverlay() {
+    initEventListeners() {
+        this.mapCanvas.addEventListener('mousedown', (e) => {
+            if (e.button === 1) { // 가운데 버튼 (휠 클릭)
+                e.preventDefault();
+                this.isPanning = true;
+
+                // map-editor 기준 좌표 계산
+                const mapEditor = document.getElementById('map-editor');
+                const editorRect = mapEditor.getBoundingClientRect();
+                const editorX = e.clientX - editorRect.left;
+                const editorY = e.clientY - editorRect.top;
+
+                this.panStartX = editorX - this.mapPanX * this.mapZoom;
+                this.panStartY = editorY - this.mapPanY * this.mapZoom;
+                this.mapCanvas.style.cursor = 'grabbing';
+                return;
+            }
+
+            if (e.button !== 0) return; // 왼쪽 클릭만
+
+
+            // 이벤트가 있는 위치 체크
+            const hasEvent = editor.events.some(ev => ev.x === this.x && ev.y === this.y);
+            if (hasEvent) return;
+
+            if (tileEditor.tool === 'rect') {
+                // 사각형 툴: 시작점 기록
+                this.rectSelectPos = { x:this.x, y:this.y };
+                this.isPainting = true;
+            } else {
+                // 펜, 지우개: 일반 페인팅
+                this.isPainting = true;
+                this.paintTile(this.mousePos.x, this.mousePos.y);
+            }
+        });
         // 마우스가 맵 위에서 움직일때 선택범위, 파란원 그리기
         this.mapCanvas.addEventListener('mousemove', (e) => {
             const { x: tileX, y: tileY } = this.getMapCoordinates(e.clientX, e.clientY);
-            this.currentMouseTile = { x: tileX, y: tileY };
+            this.mousePos = { x: tileX, y: tileY };
 
             if (this.isPanning) { // 맵 이동중일때
                 // 팬 중일 때 컨텍스트 메뉴 닫기
@@ -53,6 +90,10 @@ class MapViewer {
                 return;
             }
 
+            if(this.isPainting && !this.rectSelectPos){
+                this.paintTile(this.x,this.y)
+            }
+
             this.updateMapOverlay(tileX,tileY)
         });
         // 마우스 뗌
@@ -63,28 +104,68 @@ class MapViewer {
                 this.mapCanvas.style.cursor = '';
                 return;
             }
+            if(this.rectSelectPos){
+                for(let i = Math.min(this.rectSelectPos.x, x); i <= Math.max(this.rectSelectPos.x, x); i++){
+                    for(let j = Math.min(this.rectSelectPos.y, y); j <= Math.max(this.rectSelectPos.y, y); j++){
+                        console.log(i,j)
+                        this.paintTile(i, j);
+                    }
+                }
+                this.rectSelectPos = null;
+            }
             this.isPainting = false;
-            this.rectSelectPos = null;
             this.updateMapOverlay(x,y)
         });
         // 우클릭 이벤트: 선택 범위 1칸으로 초기화 및 파란원 그리기
         this.mapCanvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
 
-            const { x, y } = this.getMapCoordinates(e.clientX, e.clientY);
-
             // 맵 범위 체크
-            if (this.isNotOnMap(x, y)) return;
+            if (editor.isNotOnMap(this.x, this.y)) return;
 
             // 선택된 타일이 있으면 1칸으로 초기화
             if (this.selectedTile) {editor.tileEditor.updateSelectedTile(editor.tileEditor.selectedTile.x,editor.tileEditor.selectedTile.y,1,1)}
-            this.updateMapOverlay(x,y)
-            this.showMapContextMenu(e.clientX, e.clientY, x, y);
+            this.updateMapOverlay(this.x,this.y)
+            this.showMapContextMenu(e.clientX, e.clientY, this.x, this.y);
         });
+        // 마우스 휠 이벤트: 확대/축소
+        this.mapCanvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
 
+            // 줌 중일 때 컨텍스트 메뉴 닫기
+            this.closeContextMenu();
+
+            const delta = e.deltaY > 0 ? 0.9 : 1.1; // 휠 아래: 축소, 휠 위: 확대
+            const newZoom = Math.max(0.1, Math.min(5.0, this.mapZoom * delta)); // 0.1 ~ 5.0 배
+
+            if (newZoom !== this.mapZoom) {
+                // 마우스 위치를 중심으로 확대/축소
+                const mapEditor = document.getElementById('map-editor');
+                const editorRect = mapEditor.getBoundingClientRect();
+                const container = document.getElementById('map-grid-container');
+
+                // 마우스의 map-editor 내부 좌표
+                const mouseX = e.clientX - editorRect.left - container.offsetLeft;
+                const mouseY = e.clientY - editorRect.top - container.offsetTop;
+
+                // 현재 마우스가 가리키는 맵 상의 점 계산
+                const mapPointX = (mouseX / this.mapZoom) - this.mapPanX;
+                const mapPointY = (mouseY / this.mapZoom) - this.mapPanY;
+
+                // 줌 변경
+                this.mapZoom = newZoom;
+
+                // 같은 맵 포인트가 여전히 마우스 위치에 오도록 pan 조정
+                this.mapPanX = (mouseX / newZoom) - mapPointX;
+                this.mapPanY = (mouseY / newZoom) - mapPointY;
+
+                this.applyMapTransform();
+                editor.updateZoomDisplay();
+            }
+        });
         // 맵에서 나가면 파란원이 있으면 그리고 나머진 지우기
         this.mapCanvas.addEventListener('mouseleave', () => {
-            this.currentMouseTile = null;
+            this.mousePos = null;
             this.updateMapOverlay(-1,-1)
         });
 
@@ -94,7 +175,7 @@ class MapViewer {
         const ctx = this.mapOverlayCtx;
         ctx.clearRect(0, 0, this.mapOverlay.width, this.mapOverlay.height);
         this.drawBlueCircle();
-        if (this.isNotOnMap(x, y)) {return}
+        if (editor.isNotOnMap(x, y)) {return}
         if(this.rectSelectPos !== null){
             const distX = x - this.rectSelectPos.x;
             const distY = y - this.rectSelectPos.y;
@@ -137,115 +218,22 @@ class MapViewer {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.fillRect(x * 48, y * 48, endX * 48, endY * 48);
     }
-
-    initInputEvents() {
-        const paint = (e) => {
-            const { x, y } = this.getMapCoordinates(e.clientX, e.clientY);
-
-            // 맵 범위 체크
-            if (this.isNotOnMap(x, y)) return;
-
-            // 툴에 따라 다른 동작
-            if (editor.tileEditor.selectedTool === 'pen') {
-                if (!editor.tileEditor.selectedTile) return;
-                this.setTile(x, y, this.selectedLayer, this.selectedTile);
-            } else if (editor.tileEditor.selectedTool === 'eraser') {
-                // 선택된 레이어의 타일 삭제
-                this.eraseTileAtPosition(x, y);
-            }
-        };
-
-        this.mapCanvas.addEventListener('mousedown', (e) => {
-            if (e.button === 1) { // 가운데 버튼 (휠 클릭)
-                e.preventDefault();
-                this.isPanning = true;
-
-                // map-editor 기준 좌표 계산
-                const mapEditor = document.getElementById('map-editor');
-                const editorRect = mapEditor.getBoundingClientRect();
-                const editorX = e.clientX - editorRect.left;
-                const editorY = e.clientY - editorRect.top;
-
-                this.panStartX = editorX - this.mapPanX * this.mapZoom;
-                this.panStartY = editorY - this.mapPanY * this.mapZoom;
-                this.mapCanvas.style.cursor = 'grabbing';
-                return;
-            }
-
-            if (e.button !== 0) return; // 왼쪽 클릭만
-
-            const { x, y } = this.getMapCoordinates(e.clientX, e.clientY);
-
-            // 이벤트가 있는 위치 체크
-            const hasEvent = editor.events.some(ev => ev.x === x && ev.y === y);
-            if (hasEvent) return;
-
-            if (editor.tileEditor.selectedTool === 'rect') {
-                // 사각형 툴: 시작점 기록
-                this.rectSelectPos = { x, y };
-                this.isPainting = true;
-            } else {
-                // 펜, 지우개: 일반 페인팅
-                this.isPainting = true;
-                paint(e);
-            }
-        });
-
-
-
-        // 마우스 휠 이벤트: 확대/축소
-        this.mapCanvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-
-            // 줌 중일 때 컨텍스트 메뉴 닫기
-            this.closeContextMenu();
-
-            const delta = e.deltaY > 0 ? 0.9 : 1.1; // 휠 아래: 축소, 휠 위: 확대
-            const newZoom = Math.max(0.1, Math.min(5.0, this.mapZoom * delta)); // 0.1 ~ 5.0 배
-
-            if (newZoom !== this.mapZoom) {
-                // 마우스 위치를 중심으로 확대/축소
-                const mapEditor = document.getElementById('map-editor');
-                const editorRect = mapEditor.getBoundingClientRect();
-                const container = document.getElementById('map-grid-container');
-
-                // 마우스의 map-editor 내부 좌표
-                const mouseX = e.clientX - editorRect.left - container.offsetLeft;
-                const mouseY = e.clientY - editorRect.top - container.offsetTop;
-
-                // 현재 마우스가 가리키는 맵 상의 점 계산
-                const mapPointX = (mouseX / this.mapZoom) - this.mapPanX;
-                const mapPointY = (mouseY / this.mapZoom) - this.mapPanY;
-
-                // 줌 변경
-                this.mapZoom = newZoom;
-
-                // 같은 맵 포인트가 여전히 마우스 위치에 오도록 pan 조정
-                this.mapPanX = (mouseX / newZoom) - mapPointX;
-                this.mapPanY = (mouseY / newZoom) - mapPointY;
-
-                this.applyMapTransform();
-                editor.updateZoomDisplay();
-            }
-        });
-    }
-
     update() {
-        this.renderMap();
-        this.renderEvent();
-    }
-
-    renderMap() {
-
         this.loader.setup(this.map);
-        this.updateOverlaySIZE()
-        // 플레이어 렌더링
+        this.renderMap();
+        this.renderEvent()
     }
-    updateOverlaySIZE() {
+    setCanvasSize(width, height) {
+        this.mapCanvas.width = width;
+        this.mapCanvas.height = height;
         this.mapOverlay.width = this.mapCanvas.width;
         this.mapOverlay.height = this.mapCanvas.height;
         this.eventCanvas.width = this.mapCanvas.width;
         this.eventCanvas.height = this.mapCanvas.height;
+    }
+
+    renderMap() {
+        this.loader.render();
     }
     renderEvent() {
         console.log("renderStart")
@@ -259,7 +247,6 @@ class MapViewer {
         }
     }
     drawCharacter(event) {
-        const TILE_SIZE = main.TILE_SIZE
         const dx = event.x * TILE_SIZE;
         const dy = event.y * TILE_SIZE;
         const info = event.pages[0].image
@@ -315,6 +302,7 @@ class MapViewer {
     }
 
 
+
     // 화면 좌표를 맵 좌표로 변환 (확대/축소/패닝 반영)
     getMapCoordinates(clientX, clientY) {
         // map-editor의 화면 위치
@@ -350,9 +338,9 @@ class MapViewer {
 
     // 타일 지우기
     eraseTileAtPosition(x, y) {
-        if (this.isNotOnMap(x, y)) return;
+        if (editor.isNotOnMap(x, y)) return;
 
-        if (this.selectedLayer === 'auto') {
+        if (tileEditor.layer === 'auto') {
             // 오토 모드: 모든 레이어(0-3) 지우기
             for (let layerIdx = 0; layerIdx < 4; layerIdx++) {
                 const oldTileId = main.mapManager.mapData(x, y, layerIdx);
@@ -365,7 +353,7 @@ class MapViewer {
             }
         } else {
             // 특정 레이어만 지우기
-            const layerIdx = parseInt(this.selectedLayer);
+            const layerIdx = parseInt(tileEditor.layer);
             const oldTileId = main.mapManager.mapData(x, y, layerIdx);
             main.mapManager.setMapData(x, y, layerIdx, 0);
 
@@ -378,26 +366,6 @@ class MapViewer {
         main.mapManager.renderMap();
     }
 
-    // 사각형 그리기
-    drawRect(startX, startY, endX, endY) {
-        if (!this.selectedTile) return;
-
-        const minX = Math.min(startX, endX);
-        const maxX = Math.max(startX, endX);
-        const minY = Math.min(startY, endY);
-        const maxY = Math.max(startY, endY);
-
-        for (let y = minY; y <= maxY; y++) {
-            for (let x = minX; x <= maxX; x++) {
-                if (!this.isNotOnMap(x, y)) {
-                    this.setTile(x, y, this.selectedLayer, this.selectedTile);
-                }
-            }
-        }
-
-        console.log(`사각형 그리기: (${minX},${minY}) ~ (${maxX},${maxY})`);
-    }
-
     // 맵 변환 적용
     applyMapTransform() {
         const container = document.getElementById('map-grid-container');
@@ -407,47 +375,9 @@ class MapViewer {
         }
     }
 
-    isNotOnMap(x, y) {
-        return x < 0 || x >= editor.map.width || y < 0 || y >= editor.map.height
-    }
-
-
-    setTile(mapX, mapY, layerMode, selectedTile) {
-
-        if (!main.map) return;
-
-        for (let h = 0; h < selectedTile.h; h++) {
-            for (let w = 0; w < selectedTile.w; w++) {
-                const targetX = mapX + w;
-                const targetY = mapY + h;
-
-                if (!this.isNotOnMap(targetX, targetY)) continue;
-
-                const tileId = this.calculateTileId(selectedTile, w, h);
-
-                // R 탭(리전)은 항상 Layer 5에 배치
-                let layerIdx;
-                if (selectedTile.tab === 'R') {
-                    layerIdx = 5;
-                } else if (layerMode === 'auto') {
-                    layerIdx = this.determineAutoLayer(targetX, targetY, tileId, selectedTile.tab);
-                } else {
-                    layerIdx = parseInt(layerMode);
-                }
-
-                // 오토타일인 경우 주변 타일 검사 후 패턴 결정
-                let finalTileId = tileId;
-                if (this.isAutotile(tileId)) {
-                    finalTileId = this.calculateAutotilePattern(targetX, targetY, layerIdx, tileId);
-                }
-
-                this.setMapData(targetX, targetY, layerIdx, finalTileId);
-
-                // 오토타일 전파: 주변 8칸 재계산 (항상 수행 - 인접 타일이 오토타일일 수 있음)
-                // 레이어 0, 1에서만 오토타일 연결이 발생함
-                this.propagateAutotile(targetX, targetY, layerIdx);
-            }
-        }
+    paintTile(x,y){
+        if (editor.isNotOnMap(x, y)) return;
+        tileEditor.paintTile(x, y);
         this.renderMap();
     }
     // 빈 공간 우클릭 메뉴
@@ -525,111 +455,14 @@ class MapViewer {
 
 
 class MapLoader {
-    constructor() {
-        this.canvas = document.getElementById('map-canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.tileSize = 48; // MZ 기본 타일 크기
-
+    constructor(canvas,ctx) {
+        this.canvas = canvas
+        this.ctx = ctx
+        this.tilesetData = null
+        this.flags = null
         // 레이어별 캔버스 시스템
         this.layerCanvases = [];
         this.layerContexts = [];
-        this.highlightMode = 'auto'; // 'auto', '0', '1', '2', '3'
-
-        this.TILE_ID_B = 0;
-        this.TILE_ID_C = 256;
-        this.TILE_ID_D = 512;
-        this.TILE_ID_E = 768;
-        this.TILE_ID_A5 = 1536;
-        this.TILE_ID_A1 = 2048;
-        this.TILE_ID_A2 = 2816;
-        this.TILE_ID_A3 = 4352;
-        this.TILE_ID_A4 = 5888;
-        this.TILE_ID_MAX = 8192;
-
-        this.A1_AUTOTILE_TYPE_MAP = [
-            ['floor', 'floor', 'floor', 'fixed', 'floor', 'floor', 'floor', 'floor'], // 첫 번째 행
-            ['floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor', 'floor']  // 두 번째 행
-        ];
-
-        // prettier-ignore
-        this.FLOOR_AUTOTILE_TABLE = [
-            [[2, 4], [1, 4], [2, 3], [1, 3]],
-            [[2, 0], [1, 4], [2, 3], [1, 3]],
-            [[2, 4], [3, 0], [2, 3], [1, 3]],
-            [[2, 0], [3, 0], [2, 3], [1, 3]],
-            [[2, 4], [1, 4], [2, 3], [3, 1]],
-            [[2, 0], [1, 4], [2, 3], [3, 1]],
-            [[2, 4], [3, 0], [2, 3], [3, 1]],
-            [[2, 0], [3, 0], [2, 3], [3, 1]],
-            [[2, 4], [1, 4], [2, 1], [1, 3]],
-            [[2, 0], [1, 4], [2, 1], [1, 3]],
-            [[2, 4], [3, 0], [2, 1], [1, 3]],
-            [[2, 0], [3, 0], [2, 1], [1, 3]],
-            [[2, 4], [1, 4], [2, 1], [3, 1]],
-            [[2, 0], [1, 4], [2, 1], [3, 1]],
-            [[2, 4], [3, 0], [2, 1], [3, 1]],
-            [[2, 0], [3, 0], [2, 1], [3, 1]],
-            [[0, 4], [1, 4], [0, 3], [1, 3]],
-            [[0, 4], [3, 0], [0, 3], [1, 3]],
-            [[0, 4], [1, 4], [0, 3], [3, 1]],
-            [[0, 4], [3, 0], [0, 3], [3, 1]],
-            [[2, 2], [1, 2], [2, 3], [1, 3]],
-            [[2, 2], [1, 2], [2, 3], [3, 1]],
-            [[2, 2], [1, 2], [2, 1], [1, 3]],
-            [[2, 2], [1, 2], [2, 1], [3, 1]],
-            [[2, 4], [3, 4], [2, 3], [3, 3]],
-            [[2, 4], [3, 4], [2, 1], [3, 3]],
-            [[2, 0], [3, 4], [2, 3], [3, 3]],
-            [[2, 0], [3, 4], [2, 1], [3, 3]],
-            [[2, 4], [1, 4], [2, 5], [1, 5]],
-            [[2, 0], [1, 4], [2, 5], [1, 5]],
-            [[2, 4], [3, 0], [2, 5], [1, 5]],
-            [[2, 0], [3, 0], [2, 5], [1, 5]],
-            [[0, 4], [3, 4], [0, 3], [3, 3]],
-            [[2, 2], [1, 2], [2, 5], [1, 5]],
-            [[0, 2], [1, 2], [0, 3], [1, 3]],
-            [[0, 2], [1, 2], [0, 3], [3, 1]],
-            [[2, 2], [3, 2], [2, 3], [3, 3]],
-            [[2, 2], [3, 2], [2, 1], [3, 3]],
-            [[2, 4], [3, 4], [2, 5], [3, 5]],
-            [[2, 0], [3, 4], [2, 5], [3, 5]],
-            [[0, 4], [1, 4], [0, 5], [1, 5]],
-            [[0, 4], [3, 0], [0, 5], [1, 5]],
-            [[0, 2], [3, 2], [0, 3], [3, 3]],
-            [[0, 2], [1, 2], [0, 5], [1, 5]],
-            [[0, 4], [3, 4], [0, 5], [3, 5]],
-            [[2, 2], [3, 2], [2, 5], [3, 5]],
-            [[0, 2], [3, 2], [0, 5], [3, 5]],
-            [[0, 0], [1, 0], [0, 1], [1, 1]]
-        ];
-
-        // prettier-ignore
-        this.WALL_AUTOTILE_TABLE = [
-            [[2, 2], [1, 2], [2, 1], [1, 1]],
-            [[0, 2], [1, 2], [0, 1], [1, 1]],
-            [[2, 0], [1, 0], [2, 1], [1, 1]],
-            [[0, 0], [1, 0], [0, 1], [1, 1]],
-            [[2, 2], [3, 2], [2, 1], [3, 1]],
-            [[0, 2], [3, 2], [0, 1], [3, 1]],
-            [[2, 0], [3, 0], [2, 1], [3, 1]],
-            [[0, 0], [3, 0], [0, 1], [3, 1]],
-            [[2, 2], [1, 2], [2, 3], [1, 3]],
-            [[0, 2], [1, 2], [0, 3], [1, 3]],
-            [[2, 0], [1, 0], [2, 3], [1, 3]],
-            [[0, 0], [1, 0], [0, 3], [1, 3]],
-            [[2, 2], [3, 2], [2, 3], [3, 3]],
-            [[0, 2], [3, 2], [0, 3], [3, 3]],
-            [[2, 0], [3, 0], [2, 3], [3, 3]],
-            [[0, 0], [3, 0], [0, 3], [3, 3]]
-        ];
-
-        // prettier-ignore
-        this.WATERFALL_AUTOTILE_TABLE = [
-            [[2, 0], [1, 0], [2, 1], [1, 1]],
-            [[0, 0], [1, 0], [0, 1], [1, 1]],
-            [[2, 0], [3, 0], [2, 1], [3, 1]],
-            [[0, 0], [3, 0], [0, 1], [3, 1]]
-        ];
     }
 
     get width() {
@@ -637,9 +470,6 @@ class MapLoader {
     }
     get height() {
         return this.mapData.height
-    }
-    get flags() {
-        return this.tilesetData.flags
     }
 
 
@@ -649,10 +479,10 @@ class MapLoader {
     setup(mapData) {
         this.mapData = mapData;
         this.tilesetData = editor.getTilesetFromMap(mapData);
+        this.flags = this.tilesetData.flags
 
         // 1. 캔버스 크기 설정 (타일 개수 * 48px)
-        this.canvas.width = this.mapData.width * this.tileSize;
-        this.canvas.height = this.mapData.height * this.tileSize;
+        mapViewer.setCanvasSize(this.mapData.width * TILE_SIZE, this.mapData.height * TILE_SIZE);
 
         // 2. 레이어별 캔버스 생성 (처음 한 번만)
         if (this.layerCanvases.length === 0) {
@@ -660,12 +490,10 @@ class MapLoader {
         } else {
             // 캔버스 크기만 업데이트
             this.layerCanvases.forEach(canvas => {
-                canvas.width = this.mapData.width * this.tileSize;
-                canvas.height = this.mapData.height * this.tileSize;
+                canvas.width = this.mapData.width * TILE_SIZE;
+                canvas.height = this.mapData.height * TILE_SIZE;
             });
         }
-
-        this.render();
     }
 
     createLayerCanvases() {
@@ -674,8 +502,8 @@ class MapLoader {
         // 레이어 0~3 + 그림자 레이어 (총 5개)
         for (let i = 0; i < 5; i++) {
             const layerCanvas = document.createElement('canvas');
-            layerCanvas.width = this.mapData.width * this.tileSize;
-            layerCanvas.height = this.mapData.height * this.tileSize;
+            layerCanvas.width = this.mapData.width * TILE_SIZE;
+            layerCanvas.height = this.mapData.height * TILE_SIZE;
             layerCanvas.style.position = 'absolute';
             layerCanvas.style.left = '0';
             layerCanvas.style.top = '0';
@@ -691,8 +519,7 @@ class MapLoader {
         }
     }
 
-    setHighlightMode(mode) {
-        this.highlightMode = mode;
+    setHighlightMode() {
         this.render();
     }
 
@@ -703,7 +530,7 @@ class MapLoader {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // 자동 모드: 모든 레이어를 메인 캔버스에 정상 렌더링
-        if (this.highlightMode === 'auto') {
+        if (tileEditor.layer === 'auto') {
             this.renderAllLayersNormal();
             // 레이어 캔버스들 숨기기
             this.layerCanvases.forEach(canvas => {
@@ -742,7 +569,7 @@ class MapLoader {
     }
 
     renderLayersSeparately() {
-        const selectedLayer = parseInt(this.highlightMode);
+        const selectedLayer = parseInt(tileEditor.layer);
 
         // 모든 레이어 캔버스 초기화
         this.layerContexts.forEach(ctx => {
@@ -808,62 +635,12 @@ class MapLoader {
         return this.mapData.data[(z * this.mapData.height + y) * this.mapData.width + x] || 0;
     }
 
-    // script/MapEditor.js 수정
-
-    isAutotile(tileId) {
-        return tileId >= this.TILE_ID_A1;
-    };
-
-    isTileA1(tileId) {
-        return tileId >= this.TILE_ID_A1 && tileId < this.TILE_ID_A2;
-    };
-
-    isTileA2(tileId) {
-        return tileId >= this.TILE_ID_A2 && tileId < this.TILE_ID_A3;
-    };
-
-    isTileA3(tileId) {
-        return tileId >= this.TILE_ID_A3 && tileId < this.TILE_ID_A4;
-    };
-
-    isTileA4(tileId) {
-        return tileId >= this.TILE_ID_A4 && tileId < this.TILE_ID_MAX;
-    };
-
-    isTileA5(tileId) {
-        return tileId >= this.TILE_ID_A5 && tileId < this.TILE_ID_A1;
-    };
-    isTileB(tileId) {
-        return tileId >= this.TILE_ID_B && tileId < this.TILE_ID_C;
-    };
-    isTileC(tileId) {
-        return tileId >= this.TILE_ID_C && tileId < this.TILE_ID_D;
-    };
-    isTileD(tileId) {
-        return tileId >= this.TILE_ID_D && tileId < this.TILE_ID_E;
-    };
-    isTileE(tileId) {
-        return tileId >= this.TILE_ID_E && tileId < this.TILE_ID_A5;
-    };
-
-    getAutotileKind(tileId) {
-        return Math.floor((tileId - this.TILE_ID_A1) / 48);
-    };
-
-    getAutotileShape(tileId) {
-        return (tileId - this.TILE_ID_A1) % 48;
-    };
-
     isTableTile(tileId) {
-        return this.isTileA2(tileId) && this.flags[tileId] & 0x80;
+        return editor.isTileA2(tileId) && this.flags[tileId] & 0x80;
     };
-
-    isShadowingTile(tileId) {
-        return this.isTileA3(tileId) || this.isTileA4(tileId);
-    }
 
     drawTile(ctx, tileId, dx, dy) {
-        if (this.isAutotile(tileId)) {
+        if (editor.isAutotile(tileId)) {
             this.drawAutotile(ctx, tileId, dx, dy);
         } else {
             this.drawNormal(ctx, tileId, dx, dy);
@@ -871,24 +648,24 @@ class MapLoader {
     }
 
     drawAutotile(ctx, tileId, x, y) {
-        const dx = x * this.tileSize
-        const dy = y * this.tileSize
+        const dx = x * TILE_SIZE;
+        const dy = y * TILE_SIZE;
 
-        const kind = this.getAutotileKind(tileId)
-        const shape = this.getAutotileShape(tileId)
+        const kind = editor.getAutotileKind(tileId)
+        const shape = editor.getAutotileShape(tileId)
         const tx = kind % 8;
         const ty = Math.floor(kind / 8);
         let tileTypeIndex = 0;
         let bx = 0;
         let by = 0;
-        let autotileTable = this.FLOOR_AUTOTILE_TABLE;
+        let autotileTable = FLOOR_AUTOTILE_TABLE;
         let isTable = false;
 
-        if (this.isTileA1(tileId)) {
+        if (editor.isTileA1(tileId)) {
             const row = Math.floor(kind / 8);
             const col = kind % 8;
 
-            const tileTypeStr = (row < 2 && col < 8) ? this.A1_AUTOTILE_TYPE_MAP[row][col] : 'floor';
+            const tileTypeStr = (row < 2 && col < 8) ? A1_AUTOTILE_TYPE_MAP[row][col] : 'floor';
             // 타일셋 상의 위치 계산
             bx = [0, 6, 8, 14][col % 4];
             by = [0, 3, 6, 9][Math.floor(col / 4) + (row * 2)];
@@ -896,35 +673,35 @@ class MapLoader {
             // 오토타일 타입에 따라 테이블 선택
             if (tileTypeStr === 'fixed') {
                 // 고정 타일은 항상 같은 모양 (패턴 0)
-                autotileTable = this.FLOOR_AUTOTILE_TABLE;
+                autotileTable = FLOOR_AUTOTILE_TABLE;
             } else if (tileTypeStr === 'waterfall') {
-                autotileTable = this.WATERFALL_AUTOTILE_TABLE;
+                autotileTable = WATERFALL_AUTOTILE_TABLE;
             } else { // 'floor'
-                autotileTable = this.FLOOR_AUTOTILE_TABLE;
+                autotileTable = FLOOR_AUTOTILE_TABLE;
             }
-        } else if (this.isTileA2(tileId)) {
+        } else if (editor.isTileA2(tileId)) {
             tileTypeIndex = 1;
             bx = tx * 2;
             by = (ty - 2) * 3;
             isTable = this.isTableTile(tileId);
-        } else if (this.isTileA3(tileId)) {
+        } else if (editor.isTileA3(tileId)) {
             tileTypeIndex = 2;
             bx = tx * 2;
             by = (ty - 6) * 2;
-            autotileTable = this.WALL_AUTOTILE_TABLE;
-        } else if (this.isTileA4(tileId)) {
+            autotileTable = WALL_AUTOTILE_TABLE;
+        } else if (editor.isTileA4(tileId)) {
             tileTypeIndex = 3;
             bx = tx * 2;
             by = Math.floor((ty - 10) * 2.5 + (ty % 2 === 1 ? 0.5 : 0));
             if (ty % 2 === 1) {
-                autotileTable = this.WALL_AUTOTILE_TABLE;
+                autotileTable = WALL_AUTOTILE_TABLE;
             }
         }
         const img = main.images.tilesets.get(this.tilesetData.tilesetNames[tileTypeIndex]);
 
         const table = autotileTable[shape];
-        const w1 = this.tileSize / 2;
-        const h1 = this.tileSize / 2;
+        const w1 = TILE_SIZE / 2;
+        const h1 = TILE_SIZE / 2;
         for (let i = 0; i < 4; i++) {
             const qsx = table[i][0];
             const qsy = table[i][1];
@@ -947,23 +724,23 @@ class MapLoader {
 
 
     getNormalTile(tileId) {
-        const s = this.tileSize;
+        const s = TILE_SIZE;;
         const sx = ((Math.floor(tileId / 128) % 2) * 8 + (tileId % 8)) * s;
         const sy = (Math.floor((tileId % 256) / 8) % 16) * s;
 
         let tileTypeIndex = 4
-        if (this.isTileB(tileId)) { tileTypeIndex = 5 }
-        else if (this.isTileC(tileId)) { tileTypeIndex = 6 }
-        else if (this.isTileD(tileId)) { tileTypeIndex = 7 }
-        else if (this.isTileE(tileId)) { tileTypeIndex = 8 }
+        if (editor.isTileB(tileId)) { tileTypeIndex = 5 }
+        else if (editor.isTileC(tileId)) { tileTypeIndex = 6 }
+        else if (editor.isTileD(tileId)) { tileTypeIndex = 7 }
+        else if (editor.isTileE(tileId)) { tileTypeIndex = 8 }
         const img = main.images.tilesets.get(this.tilesetData.tilesetNames[tileTypeIndex]);
 
         return { img, sx, sy }
     }
 
     drawNormal(ctx, tileId, x, y) {
-        const dx = x * this.tileSize
-        const dy = y * this.tileSize
+        const dx = x * TILE_SIZE;
+        const dy = y * TILE_SIZE;
 
         const tile = this.getNormalTile(tileId)
         if (!tile.img) {
@@ -975,12 +752,12 @@ class MapLoader {
 
     drawShadow(ctx, shadowBits, x, y) {
         if (shadowBits & 0x0f) {
-            const w1 = this.tileSize / 2;
-            const h1 = this.tileSize / 2;
+            const w1 = TILE_SIZE / 2;
+            const h1 = TILE_SIZE / 2;
             for (let i = 0; i < 4; i++) {
                 if (shadowBits & (1 << i)) {
-                    const dx1 = x * this.tileSize + (i % 2) * w1;
-                    const dy1 = y * this.tileSize + Math.floor(i / 2) * h1;
+                    const dx1 = x * TILE_SIZE + (i % 2) * w1;
+                    const dy1 = y * TILE_SIZE + Math.floor(i / 2) * h1;
                     ctx.fillStyle = 'rgba(0,0,0,0.5)'
                     ctx.fillRect(dx1, dy1, w1, h1)
                 }
@@ -989,19 +766,19 @@ class MapLoader {
     }
 
     drawTableEdge(ctx, tileId, x, y) {
-        const dx = x * this.tileSize
-        const dy = y * this.tileSize
-        if (this.isTileA2(tileId)) {
+        const dx = x * TILE_SIZE;
+        const dy = y * TILE_SIZE;
+        if (editor.isTileA2(tileId)) {
             const autotileTable = this.FLOOR_AUTOTILE_TABLE;
-            const kind = this.getAutotileKind(tileId);
-            const shape = this.getAutotileShape(tileId);
+            const kind = editor.getAutotileKind(tileId);
+            const shape = editor.getAutotileShape(tileId);
             const tx = kind % 8;
             const ty = Math.floor(kind / 8);
             const bx = tx * 2;
             const by = (ty - 2) * 3;
             const table = autotileTable[shape];
-            const w1 = this.tileSize / 2;
-            const h1 = this.tileSize / 2;
+            const w1 = TILE_SIZE / 2;
+            const h1 = TILE_SIZE / 2;
             for (let i = 0; i < 2; i++) {
                 const qsx = table[2 + i][0];
                 const qsy = table[2 + i][1];
