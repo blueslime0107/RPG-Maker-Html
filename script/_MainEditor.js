@@ -107,7 +107,6 @@ class MainEditor {
 
 
         // 인스턴스
-        this.mapviewer = new MapViewer();
         this.tileEditor = new TileEditor();
         this.mapListEditor = new MapListEditor();
         this.mapviewer = new MapViewer();
@@ -116,6 +115,8 @@ class MainEditor {
 
         this.contextSelf = null;
         this.contextWhenClose = null;
+
+        this.clipboard = null
         return
         this.selectedTile = null
         this.selectedTilesetTab = 'A'
@@ -153,6 +154,7 @@ class MainEditor {
         this.tileEditor.init()
         this.mapviewer.init()
         this.mapListEditor.init()
+        this.eventEditor.init()
     }
     
     loadMap(id) {
@@ -200,6 +202,17 @@ class MainEditor {
     // 통합 맵 데이터 접근 헬퍼 (읽기)
     getMapData(x, y, layerIdx) {
         return this.map.data[this.getTileIndex(x, y, layerIdx)];
+    }
+    // 다음 이벤트 ID 찾기 (null 슬롯 재사용)
+    getNextEventId() {
+        // 0번 인덱스는 항상 null이므로 1부터 시작
+        for (let i = 1; i < this.events.length; i++) {
+            if (this.events[i] === null) {
+                return i;
+            }
+        }
+        // null이 없으면 배열 끝에 추가
+        return this.events.length;
     }
 
     // 통합 맵 데이터 설정 헬퍼 (쓰기)
@@ -343,7 +356,8 @@ class MainEditor {
             Object.assign(div.style, {
                 padding: '6px 20px',
                 cursor: opt.disabled ? 'default' : 'pointer',
-                opacity: opt.disabled ? '0.4' : '1'
+                opacity: opt.disabled ? '0.4' : '1',
+                color: opt.color ? opt.color : '#eee'
             });
 
             if (!opt.disabled) {

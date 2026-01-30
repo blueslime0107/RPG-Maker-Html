@@ -233,17 +233,17 @@ class Main {
 var main
 /** @type {MainEditor} */
 var editor
-/** @type {EventManager} */
-var em
 /** @type {MapViewer} */
 var mapViewer
 /** @type {TileEditor} */
 var tileEditor
+/** @type {EventEditor} */
+var eventEditor
 // 에디터 실행
 window.onload = () => {
     window.main = new Main();
     window.editor = main.editor;
-    window.em = main.eventManager
+    window.eventEditor = main.editor.eventEditor
     window.mapViewer = main.editor.mapviewer
     window.tileEditor = main.editor.tileEditor
 };

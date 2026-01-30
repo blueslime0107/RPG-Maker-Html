@@ -69,9 +69,11 @@ class MapViewer {
             this.mouseDown_eventDrag()
         });
         // 마우스가 맵 위에서 움직일때 선택범위, 파란원 그리기
-        this.mapCanvas.addEventListener('mousemove', (e) => {
+        window.addEventListener('mousemove', (e) => {
             const { x: tileX, y: tileY } = this.getMapCoordinates(e.clientX, e.clientY);
             this.mousePos = { x: tileX, y: tileY };
+            const mousePosInfo = document.getElementById('mouse-pos-info');
+            mousePosInfo.textContent = `MousePos ${tileX},${tileY}`;
 
 
             if(this.isPainting && !this.rectSelectPos){
@@ -110,10 +112,28 @@ class MapViewer {
             if (this.selectedTile) {editor.tileEditor.updateSelectedTile(editor.tileEditor.selectedTile.x,editor.tileEditor.selectedTile.y,1,1)}
             this.updateMapOverlay(this.x,this.y)
             // 해당 좌표의 이벤트 찾기
-            const clickedEvent = this.events.find(ev => ev.x === this.x && ev.y === this.y);
+            const event = editor.getEvent(this.x,this.y)
 
-            if (clickedEvent) {
-                this.showEventContextMenu(e.pageX, e.pageY, clickedEvent);
+            if (event) {
+                editor.showContextMenu(this,e, [
+                {
+                    label: '편집',
+                    action: () => eventEditor.loadEventToInspector(event)
+                },
+                {
+                    label: '복사 (Ctrl+C)',
+                    action: () => this.copyEvent(event)
+                },
+                {
+                    label: '삭제 (Del)',
+                    action: () => this.deleteEvent(event),
+                    color: '#ff6666'
+                }
+                ],() => {
+                    console.log("삭제")
+                    this.blueCirclePosition = null;
+                    this.updateMapOverlay(this.x,this.y)
+                })
             } else {
                 editor.showContextMenu(this,e, [
                     {
@@ -122,12 +142,12 @@ class MapViewer {
                     },
                     {
                         label: '이벤트 생성',
-                        action: () => this.createEvent(this.x, this.y)
+                        action: () => this.createEvent(this.blueCirclePosition.x, this.blueCirclePosition.y)
                     },
                     {
                         label: '붙여넣기 (Ctrl+V)',
-                        action: () => this.pasteEvent(this.x, this.y),
-                        disabled: !this.clipboard
+                        action: () => this.pasteEvent(this.blueCirclePosition.x, this.blueCirclePosition.y),
+                        disabled: !editor.clipboard
                     }
                 ],() => {
                     console.log("삭제")
@@ -145,7 +165,6 @@ class MapViewer {
         });
         // 맵에서 나가면 파란원이 있으면 그리고 나머진 지우기
         this.mapCanvas.addEventListener('mouseleave', () => {
-            this.mousePos = null;
             this.updateMapOverlay(-1,-1)
         });
 
@@ -521,6 +540,102 @@ class MapViewer {
         ctx.fillStyle = 'white';
         ctx.font = '10px sans-serif';
         ctx.fillText(event.id, dx + 4, dy + 14);
+    }
+
+    
+    // 이벤트 생성
+    createEvent(x, y) {
+        const newId = editor.getNextEventId();
+        const newEvent = {
+            id: newId,
+            name: "EVENT",
+            note: "",
+            pages: [{
+                conditions: {
+                    actorId: 1,
+                    actorValid: false,
+                    itemId: 1,
+                    itemValid: false,
+                    selfSwitchCh: "A",
+                    selfSwitchValid: false,
+                    switch1Id: 1,
+                    switch1Valid: false,
+                    switch2Id: 1,
+                    switch2Valid: false,
+                    variableId: 1,
+                    variableValid: false,
+                    variableValue: 0
+                },
+                directionFix: false,
+                image: {
+                    characterIndex: 0,
+                    characterName: "",
+                    direction: 2,
+                    pattern: 0,
+                    tileId: 0
+                },
+                list: [{ code: 0, indent: 0, parameters: [] }],
+                moveFrequency: 3,
+                moveRoute: {
+                    list: [{ code: 0, parameters: [] }],
+                    repeat: true,
+                    skippable: false,
+                    wait: false
+                },
+                moveSpeed: 3,
+                moveType: 0,
+                priorityType: 1,
+                stepAnime: false,
+                through: false,
+                trigger: 0,
+                walkAnime: true
+            }],
+            x: x,
+            y: y
+        };
+
+        editor.events[newId] = newEvent;
+        this.renderEvent();
+        eventEditor.loadEventToInspector(newEvent);
+        console.log(`이벤트 생성: ID ${newId}, (${x}, ${y})`);
+    }
+    // 이벤트 복사
+    copyEvent(event) {
+        editor.clipboard = JSON.parse(JSON.stringify(event));
+        console.log('이벤트 복사:', event.id);
+    }
+    // 이벤트 붙여넣기
+    pasteEvent(x, y) {
+        if (!editor.clipboard) return;
+
+        const newId = editor.getNextEventId();
+        const newEvent = JSON.parse(JSON.stringify(editor.clipboard));
+        newEvent.id = newId;
+        newEvent.x = x;
+        newEvent.y = y;
+
+        editor.events[newId] = newEvent;
+        this.renderEvent();
+        console.log(`이벤트 붙여넣기: ID ${newId}, (${x}, ${y})`);
+    }
+
+
+    // 이벤트 삭제
+    deleteEvent(event) {
+        if (!confirm(`이벤트 ${event.id}를 삭제하시겠습니까?`)) return;
+
+        this.map.events[event.id] = null;
+        this.events = this.map.events.filter(x => x != null);
+
+        // 인스펙터가 삭제된 이벤트를 표시 중이면 초기화
+        if (this.selectedEvent && this.selectedEvent.id === event.id) {
+            this.selectedEvent = null;
+            document.getElementById('inspector-main').style.display = 'none';
+            document.getElementById('inspector-empty').style.display = 'block';
+        }
+
+        this.loadEvent();
+        console.log('이벤트 삭제:', event.id);
     }
 }
 

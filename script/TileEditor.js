@@ -292,7 +292,7 @@ class TileEditor {
         }
 
         // B~E그룹: Layer 2-3 (상층)
-        const layer3Tile = editor.mapData(x, y, 3);
+        const layer3Tile = editor.getMapData(x, y, 3);
 
         // Layer 2가 비어있거나 같은 타일이면 Layer 2에 배치
         if (layer3Tile != 0) {
@@ -358,7 +358,7 @@ class TileEditor {
 
             // 맵 범위 밖은 연결되지 않은 것으로 간주
             if (!editor.isNotOnMap(checkX, checkY)) {
-                const checkTileId = editor.mapData(checkX, checkY, layerIdx);
+                const checkTileId = editor.getMapData(checkX, checkY, layerIdx);
                 const checkBaseId = editor.getAutotileBaseId(checkTileId);
 
                 // 같은 base ID를 가진 타일이면 연결됨
@@ -500,7 +500,7 @@ class TileEditor {
 
             if (editor.isNotOnMap(checkX, checkY)) continue;
 
-            const checkTileId = editor.mapData(checkX, checkY, layerIdx);
+            const checkTileId = editor.getMapData(checkX, checkY, layerIdx);
 
             // 주변 타일이 오토타일이면 재계산
             if (editor.isAutotile(checkTileId)) {

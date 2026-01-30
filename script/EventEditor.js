@@ -1,7 +1,9 @@
 
 class EventEditor {
     constructor() {
-
+        this.selectedEvent = null; // 현재 선택된 이벤트 보관
+        this.currentPageIndex = 0; // 현재 페이지 인덱스 초기화
+        this.editor = new EventCodeEditor(document.getElementById('ins-contents-list')); // EventEditor 인스턴스 (독립적으로 생성)
         return
         this.events = null
         this.selectedCommand = null; // 선택된 커맨드
@@ -14,7 +16,6 @@ class EventEditor {
         this.dragStartPos = null; // 드래그 시작 위치
         this.selectedEvent = null; // 현재 선택된 이벤트
         this.currentPageIndex = 0; // 현재 페이지 인덱스
-        this.editor = new EventEditor(document.getElementById('ins-contents-list')); // EventEditor 인스턴스 (독립적으로 생성)
         this.initClickEvent()
         this.initDragEvent();
         this.initInspectorTabs();
@@ -22,40 +23,50 @@ class EventEditor {
         this.initFontSizeControl();
     }
 
+    init(){}
 
-    loadEvent() {
-        this.render()
-    }
+    // 3. 인스펙터용 이미지 미리보기 (작은 캔버스에 그리기)
+    drawInspectorPreview(event, pageIndex) {
+        const previewArea = document.getElementById('ins-preview');
 
-    // 맵에 있는 이벤트들을 불러와서 그리기
-    render() {
-        console.log("renderStart")
-        this.events = this.map.events.filter(x => x != null);
+        // 기존 캔버스 제거
+        const oldCanvas = previewArea.querySelector('canvas');
+        if (oldCanvas) oldCanvas.remove();
 
-        //이벤트 오버레이 캔버스 초기화
-        const eventCanvas = document.getElementById('event-overlay-canvas');
-        if (eventCanvas) {
-            const ctx = eventCanvas.getContext('2d');
-            ctx.clearRect(0, 0, eventCanvas.width, eventCanvas.height);
+        const page = event.pages[pageIndex || 0];
+        if (!page) return;
+
+        const info = page.image;
+        if (!info.characterName && !info.tileId) {
+            previewArea.innerHTML = '<div style="color: #888;">이미지 없음</div>';
+            return;
         }
 
-        // 플레이어 렌더링
-        this.drawPlayer();
+        // 새 캔버스 생성
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 96;
+        canvas.style.border = '1px solid #555';
+        canvas.style.backgroundColor = '#1a1a1a';
+        previewArea.innerHTML = '';
+        previewArea.appendChild(canvas);
 
-        // 이벤트 렌더링
-        for (const event of this.map.events) {
-            console.log(event)
-            if (!event || !event.pages || event.pages.length === 0) continue;
-
-            const x = event.x;
-            const y = event.y;
-            const imgInfo = event.pages[0].image;
-
-            this.drawCharacter(event, x, y);
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        console.log(info)
+        if (info.characterName) {
+            editor.drawCharacter(ctx,info,24,24)
+        } else if (info.tileId) {
+            // 타일 미리보기
+            try {
+                const tile = main.mapManager.loader.getNormalTile(info.tileId);
+                ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, 24, 24, 48, 48);
+            } catch (e) {
+                console.error('[drawInspectorPreview] 타일 로드 오류:', e);
+                previewArea.innerHTML = '<div style="color: #888;">타일 로드 실패</div>';
+            }
         }
     }
-
-
 
     // 1. 우클릭 감지 초기화
     initClickEvent() {
@@ -103,148 +114,6 @@ class EventEditor {
             }
         });
     }
-
-    // 드래그 이벤트 초기화
-    initDragEvent() {
-        const canvas = document.getElementById('map-canvas');
-        if (!canvas) return;
-
-        let isDragging = false;
-        let dragStartX = 0;
-        let dragStartY = 0;
-
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return; // 왼쪽 클릭만
-
-            const rect = canvas.getBoundingClientRect();
-            const tileX = Math.floor((e.clientX - rect.left) / 48);
-            const tileY = Math.floor((e.clientY - rect.top) / 48);
-
-            // Ctrl 키가 눌려있고 타일셋이 선택되어 있으면 타일 그리기
-            if (e.ctrlKey && main.editorUI && main.editorUI.selectedTile) {
-                const layerMode = main.editorUI.selectedLayer; // 'auto', '0', '1', '2', '3'
-                const tile = main.editorUI.selectedTile;
-
-                // Shift+Ctrl: 타일 지우기
-                if (e.shiftKey) {
-                    main.mapManager.eraseTile(tileX, tileY, layerMode, tile);
-                } else {
-                    main.mapManager.setTile(tileX, tileY, layerMode, tile);
-                }
-                return;
-            }
-
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            // Ctrl 드래그로 타일 그리기
-            if (e.ctrlKey && (e.buttons & 1) && main.editorUI && main.editorUI.selectedTile) {
-                const rect = canvas.getBoundingClientRect();
-                const tileX = Math.floor((e.clientX - rect.left) / 48);
-                const tileY = Math.floor((e.clientY - rect.top) / 48);
-                const layerMode = main.editorUI.selectedLayer; // 'auto', '0', '1', '2', '3'
-
-                // 맵 범위 체크
-                if (tileX >= 0 && tileX < this.map.width && tileY >= 0 && tileY < this.map.height) {
-                    const tile = main.editorUI.selectedTile;
-
-                    // Shift+Ctrl: 타일 지우기
-                    if (e.shiftKey) {
-                        main.mapManager.eraseTile(tileX, tileY, layerMode, tile);
-                    } else {
-                        main.mapManager.setTile(tileX, tileY, layerMode, tile);
-                    }
-                }
-                return;
-            }
-
-            if (!isDragging || !this.draggedEvent) return;
-
-        });
-
-        canvas.addEventListener('mouseup', (e) => {
-        });
-    }
-
-
-    // 이벤트 우클릭 메뉴 표시
-    showEventContextMenu(x, y, event) {
-        this.closeContextMenu();
-
-        const menu = document.createElement('div');
-        menu.id = 'event-context-menu';
-        Object.assign(menu.style, {
-            position: 'fixed',
-            left: `${x}px`,
-            top: `${y}px`,
-            backgroundColor: '#2b2b2b',
-            color: '#eee',
-            border: '1px solid #555',
-            padding: '4px 0',
-            zIndex: '9999',
-            fontSize: '13px',
-            boxShadow: '2px 2px 10px rgba(0,0,0,0.4)',
-            minWidth: '150px'
-        });
-
-        const options = [
-            {
-                label: '편집',
-                action: () => this.loadEventToInspector(event)
-            },
-            {
-                label: '복사 (Ctrl+C)',
-                action: () => this.copyEvent(event)
-            },
-            {
-                label: '삭제 (Del)',
-                action: () => this.deleteEvent(event),
-                color: '#ff6666'
-            }
-        ];
-
-        options.forEach(opt => {
-            const div = document.createElement('div');
-            div.innerText = opt.label;
-            Object.assign(div.style, {
-                padding: '6px 20px',
-                cursor: 'pointer'
-            });
-            if (opt.color) div.style.color = opt.color;
-
-            div.onmouseover = () => div.style.backgroundColor = '#444';
-            div.onmouseout = () => div.style.backgroundColor = 'transparent';
-            div.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof opt.action === 'function') {
-                    opt.action();
-                }
-                menu.remove();
-            };
-            menu.appendChild(div);
-        });
-
-        document.body.appendChild(menu);
-        this.setupMenuClose(menu);
-    }
-
-    setupMenuClose(menu) {
-        setTimeout(() => {
-            const closeMenu = (e) => {
-                console.log("closdfsdfsse")
-                if (!menu.contains(e.target)) {
-                    menu.remove();
-                    main.editorUI.clearBlueCircle();
-                    document.removeEventListener('click', closeMenu);
-                    document.removeEventListener('wheel', closeMenu);
-                }
-            };
-            document.addEventListener('click', closeMenu);
-            document.addEventListener('wheel', closeMenu);
-        }, 0);
-    }
-
     // 커맨드 컨텍스트 메뉴
     showCommandContextMenu(x, y, cmd, index, { list }) {
         this.closeContextMenu();
@@ -320,125 +189,6 @@ class EventEditor {
         this.setupMenuClose(menu);
     }
 
-    // 플레이어 시작 위치 설정
-    setPlayerStart(x, y) {
-        main.systemData.startMapId = main.mapInfo.id;
-        main.systemData.startX = x;
-        main.systemData.startY = y;
-        this.loadEvent();
-        console.log(`플레이어 시작 위치 설정됨: 맵 ${main.mapInfo.id}, (${x}, ${y})`);
-    }
-
-    // 이벤트 생성
-    createEvent(x, y) {
-        const newId = this.getNextEventId();
-        const newEvent = {
-            id: newId,
-            name: "EVENT",
-            note: "",
-            pages: [{
-                conditions: {
-                    actorId: 1,
-                    actorValid: false,
-                    itemId: 1,
-                    itemValid: false,
-                    selfSwitchCh: "A",
-                    selfSwitchValid: false,
-                    switch1Id: 1,
-                    switch1Valid: false,
-                    switch2Id: 1,
-                    switch2Valid: false,
-                    variableId: 1,
-                    variableValid: false,
-                    variableValue: 0
-                },
-                directionFix: false,
-                image: {
-                    characterIndex: 0,
-                    characterName: "",
-                    direction: 2,
-                    pattern: 0,
-                    tileId: 0
-                },
-                list: [{ code: 0, indent: 0, parameters: [] }],
-                moveFrequency: 3,
-                moveRoute: {
-                    list: [{ code: 0, parameters: [] }],
-                    repeat: true,
-                    skippable: false,
-                    wait: false
-                },
-                moveSpeed: 3,
-                moveType: 0,
-                priorityType: 1,
-                stepAnime: false,
-                through: false,
-                trigger: 0,
-                walkAnime: true
-            }],
-            x: x,
-            y: y
-        };
-
-        this.map.events[newId] = newEvent;
-        this.events = this.map.events.filter(x => x != null);
-        this.loadEvent();
-        this.loadEventToInspector(newEvent);
-        console.log(`이벤트 생성: ID ${newId}, (${x}, ${y})`);
-    }
-
-    // 다음 이벤트 ID 찾기 (null 슬롯 재사용)
-    getNextEventId() {
-        // 0번 인덱스는 항상 null이므로 1부터 시작
-        for (let i = 1; i < this.map.events.length; i++) {
-            if (this.map.events[i] === null) {
-                return i;
-            }
-        }
-        // null이 없으면 배열 끝에 추가
-        return this.map.events.length;
-    }
-
-    // 이벤트 복사
-    copyEvent(event) {
-        this.clipboard = JSON.parse(JSON.stringify(event));
-        console.log('이벤트 복사:', event.id);
-    }
-
-    // 이벤트 붙여넣기
-    pasteEvent(x, y) {
-        if (!this.clipboard) return;
-
-        const newId = this.getNextEventId();
-        const newEvent = JSON.parse(JSON.stringify(this.clipboard));
-        newEvent.id = newId;
-        newEvent.x = x;
-        newEvent.y = y;
-
-        this.map.events[newId] = newEvent;
-        this.events = this.map.events.filter(x => x != null);
-        this.loadEvent();
-        console.log(`이벤트 붙여넣기: ID ${newId}, (${x}, ${y})`);
-    }
-
-    // 이벤트 삭제
-    deleteEvent(event) {
-        if (!confirm(`이벤트 ${event.id}를 삭제하시겠습니까?`)) return;
-
-        this.map.events[event.id] = null;
-        this.events = this.map.events.filter(x => x != null);
-
-        // 인스펙터가 삭제된 이벤트를 표시 중이면 초기화
-        if (this.selectedEvent && this.selectedEvent.id === event.id) {
-            this.selectedEvent = null;
-            document.getElementById('inspector-main').style.display = 'none';
-            document.getElementById('inspector-empty').style.display = 'block';
-        }
-
-        this.loadEvent();
-        console.log('이벤트 삭제:', event.id);
-    }
-
     // 2. 인스펙터에 데이터 로드
     loadEventToInspector(event) {
         this.selectedEvent = event; // 현재 선택된 이벤트 보관
@@ -458,20 +208,6 @@ class EventEditor {
 
         // 첫 번째 페이지 로드
         this.loadPageToInspector(event, 0);
-
-        // 첫 번째 페이지의 이미지가 있으면 미리 로드 시도
-        const firstPage = event.pages[0];
-        if (firstPage && firstPage.image && firstPage.image.characterName) {
-            const charName = firstPage.image.characterName.includes('.')
-                ? firstPage.image.characterName.substring(0, firstPage.image.characterName.lastIndexOf('.'))
-                : firstPage.image.characterName;
-            if (!main.images.has(charName)) {
-                console.log(`[loadEventToInspector] 이미지 사전 로드: ${charName}`);
-                main.loadCharacterImage(charName).then(() => {
-                    console.log(`[loadEventToInspector] 이미지 사전 로드 완료: ${charName}`);
-                });
-            }
-        }
     }
 
     // 페이지 탭 생성
@@ -999,109 +735,41 @@ class EventEditor {
         return animation.name || `애니메이션${animationId}`;
     }
 
-    // 3. 인스펙터용 이미지 미리보기 (작은 캔버스에 그리기)
-    drawInspectorPreview(event, pageIndex) {
-        const previewArea = document.getElementById('ins-preview');
-
-        // 기존 캔버스 제거
-        const oldCanvas = previewArea.querySelector('canvas');
-        if (oldCanvas) oldCanvas.remove();
-
-        const page = event.pages[pageIndex || 0];
-        if (!page) return;
-
-        const info = page.image;
-        if (!info.characterName && !info.tileId) {
-            previewArea.innerHTML = '<div style="color: #888;">이미지 없음</div>';
-            return;
-        }
-
-        // 새 캔버스 생성
-        const canvas = document.createElement('canvas');
-        canvas.width = 96;
-        canvas.height = 96;
-        canvas.style.border = '1px solid #555';
-        canvas.style.backgroundColor = '#1a1a1a';
-        previewArea.innerHTML = '';
-        previewArea.appendChild(canvas);
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        console.log(info)
-        if (info.characterName) {
-            // 캐릭터 이미지 표시
-            let characterName = info.characterName;
-            // 확장자 제거 (만약 있다면)
-            characterName = characterName.includes('.') ? characterName.substring(0, characterName.lastIndexOf('.')) : characterName;
-            const img = main.images.get(characterName);
-
-
-            if (img) {
-                this.drawCharacterPreview(ctx, img, info);
-            } else {
-                // 이미지가 없으면 직접 로드 시도
-                console.log(`[drawInspectorPreview] 이미지 로드 시도: ${characterName}`);
-                main.loadCharacterImage(characterName).then(() => {
-                    const img = main.images.get(characterName);
-                    console.log(`[drawInspectorPreview] 로드 후 확인: ${characterName} = ${!!img}`);
-                    if (img) {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        this.drawCharacterPreview(ctx, img, info);
-                    } else {
-                        previewArea.innerHTML = '<div style="color: #888;">이미지 로드 실패</div>';
-                    }
-                }).catch(err => {
-                    console.error(`[drawInspectorPreview] 로드 오류:`, err);
-                    previewArea.innerHTML = '<div style="color: #888;">이미지 로드 오류</div>';
-                });
-                previewArea.innerHTML = '<div style="color: #888;">로딩 중...</div>';
-            }
-        } else if (info.tileId) {
-            // 타일 미리보기
-            try {
-                const tile = main.mapManager.loader.getNormalTile(info.tileId);
-                ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, 24, 24, 48, 48);
-            } catch (e) {
-                console.error('[drawInspectorPreview] 타일 로드 오류:', e);
-                previewArea.innerHTML = '<div style="color: #888;">타일 로드 실패</div>';
-            }
-        }
-    }
 
     // 캐릭터 미리보기 그리기
-    drawCharacterPreview(ctx, img, info) {
-        let characterName = info.characterName;
+    // drawCharacterPreview(ctx, img, info) {
+    //     let characterName = info.characterName;
 
-        const isBig = characterName.includes('$');
+    //     const isBig = characterName.includes('$');
 
-        // direction과 pattern 반영
-        const direction = info.direction || 2; // 기본값: 아래(2)
-        const pattern = info.pattern !== undefined ? info.pattern : (isBig ? 0 : 1); // 단일칩은 0, 일반은 1
+    //     // direction과 pattern 반영
+    //     const direction = info.direction || 2; // 기본값: 아래(2)
+    //     const pattern = info.pattern !== undefined ? info.pattern : (isBig ? 0 : 1); // 단일칩은 0, 일반은 1
 
-        if (isBig) {
-            // 단일칩 처리: 3x4 (pattern x direction)
-            const charW = img.width / 3;
-            const charH = img.height / 4;
+    //     if (isBig) {
+    //         // 단일칩 처리: 3x4 (pattern x direction)
+    //         const charW = img.width / 3;
+    //         const charH = img.height / 4;
 
-            const directionIndex = [2, 4, 6, 8].indexOf(direction);
-            const sx = pattern * charW;
-            const sy = directionIndex * charH;
+    //         const directionIndex = [2, 4, 6, 8].indexOf(direction);
+    //         const sx = pattern * charW;
+    //         const sy = directionIndex * charH;
 
-            ctx.drawImage(img, sx, sy, charW, charH, -24, -24, charW, charH);
-        } else {
-            // 일반 캐릭터 처리: 12x8 (4x2 캐릭터 배치 × 3x4 패턴)
-            const charW = img.width / 12;
-            const charH = img.height / 8;
-            const col = info.characterIndex % 4;
-            const row = Math.floor(info.characterIndex / 4);
+    //         ctx.drawImage(img, sx, sy, charW, charH, -24, -24, charW, charH);
+    //     } else {
+    //         // 일반 캐릭터 처리: 12x8 (4x2 캐릭터 배치 × 3x4 패턴)
+    //         const charW = img.width / 12;
+    //         const charH = img.height / 8;
+    //         const col = info.characterIndex % 4;
+    //         const row = Math.floor(info.characterIndex / 4);
 
-            const directionIndex = [2, 4, 6, 8].indexOf(direction);
-            const sx = (col * 3 + pattern) * charW;
-            const sy = (row * 4 + directionIndex) * charH;
+    //         const directionIndex = [2, 4, 6, 8].indexOf(direction);
+    //         const sx = (col * 3 + pattern) * charW;
+    //         const sy = (row * 4 + directionIndex) * charH;
 
-            ctx.drawImage(img, sx, sy, charW, charH, 24, 24, 48, 48);
-        }
-    }
+    //         ctx.drawImage(img, sx, sy, charW, charH, 24, 24, 48, 48);
+    //     }
+    // }
 
     // 폰트 크기 제어 초기화
     initFontSizeControl() {

@@ -1487,10 +1487,7 @@ class EventCodeEditor {
         const contentsList = this.currentContentsList;
 
         // 현재 선택 상태 저장
-        const previousSelection = em.selectedCommand ? {
-            indices: [...em.selectedCommand.indices],
-            index: em.selectedCommand.index
-        } : null;
+        const previousSelection = null;
 
         contentsList.innerHTML = '';
 
@@ -1591,7 +1588,6 @@ class EventCodeEditor {
 
 
             cmdDiv.innerHTML = `${prefixStr}${commandText}`;
-            console.log(contentsList);
             contentsList.appendChild(cmdDiv);
         });
 
