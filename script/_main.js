@@ -31,9 +31,26 @@ class Main {
             se: new Map()
         }
 
+        this.playerX = 0
+        this.playerY = 0
+
         this.editor = new MainEditor();
         this.init();
 
+    }
+
+    get playerX(){
+        return this.data.system.startX
+    }
+    set playerX(value){
+        this.data.system.startX = value
+    }   
+
+    get playerY(){
+        return this.data.system.startY
+    }
+    set playerY(value){
+        this.data.system.startY = value
     }
 
     async init() {

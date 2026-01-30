@@ -1,4 +1,6 @@
 {
     "liveServer.settings.port": 5504,
-    "workbench.colorTheme": "GitHub Dark"
+    "workbench.colorTheme": "GitHub Dark",
+    "bookmarks.saveBookmarksInProject": true,
+    "bookmarks.keepBookmarksOnLineDelete": true
 }

@@ -55,88 +55,6 @@ class EventEditor {
         }
     }
 
-    drawPlayer() {
-        const canvas = document.getElementById('event-overlay-canvas');
-        const ctx = canvas.getContext('2d');
-        // 플레이어가 현재 맵에 있는지 확인
-        if (main.mapInfo.id !== main.systemData.startMapId) {
-            return; // 플레이어가 현재 맵에 없음
-        }
-
-        const x = main.systemData.startX;
-        const y = main.systemData.startY;
-
-        const TILE_SIZE = 48;
-        const dx = x * TILE_SIZE;
-        const dy = y * TILE_SIZE;
-
-        // 파티 첫 번째 멤버의 캐릭터 정보 가져오기
-        const actorId = main.systemData.partyMembers[0];
-
-        const actor = main.actorsData[actorId];
-        if (!actor) {
-            // 빨간색 테두리만 그리기
-            ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
-            ctx.lineWidth = 4;
-            ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.fillText('P', dx + 4, dy + 14);
-            return;
-        }
-
-        const characterName = actor.characterName;
-        const characterIndex = actor.characterIndex;
-
-        // 캐릭터 이미지 그리기
-        if (characterName) {
-            const img = main.images.get(characterName);
-
-            if (!img || !img.complete || !img.naturalWidth) {
-                // 이미지 없을 때 빨간 테두리만 표시
-                ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
-                ctx.lineWidth = 4;
-                ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 10px sans-serif';
-                ctx.fillText('P', dx + 4, dy + 14);
-                return;
-            }
-
-
-
-            const isBig = characterName.startsWith('$');
-            const charW = isBig ? img.width / 3 : img.width / 12;
-            const charH = isBig ? img.height / 4 : img.height / 8;
-
-            const col = isBig ? 0 : (characterIndex % 4);
-            const row = isBig ? 0 : Math.floor(characterIndex / 4);
-
-            // 기본 방향: 아래(2), 패턴: 중앙(1)
-            const pattern = 1;
-            const direction = 2;
-            const sx = (col * 3 + pattern) * charW;
-            const sy = (row * 4 + (direction / 2 - 1)) * charH;
-
-            ctx.drawImage(
-                img,
-                sx, sy, charW, charH,
-                dx + (TILE_SIZE - charW) / 2,
-                dy + TILE_SIZE - charH,
-                charW, charH
-            );
-        }
-
-        // 빨간색 테두리
-        ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(dx + 1, dy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-
-        // 플레이어 표시
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.fillText('P', dx + 4, dy + 14);
-    }
 
 
     // 1. 우클릭 감지 초기화
@@ -216,16 +134,6 @@ class EventEditor {
                 return;
             }
 
-            // 해당 좌표의 이벤트 찾기
-            const clickedEvent = this.events.find(ev => ev.x === tileX && ev.y === tileY);
-
-            if (clickedEvent) {
-                isDragging = true;
-                this.draggedEvent = clickedEvent;
-                this.dragStartPos = { x: clickedEvent.x, y: clickedEvent.y };
-                dragStartX = tileX;
-                dragStartY = tileY;
-            }
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -252,45 +160,9 @@ class EventEditor {
 
             if (!isDragging || !this.draggedEvent) return;
 
-            const rect = canvas.getBoundingClientRect();
-            const tileX = Math.floor((e.clientX - rect.left) / 48);
-            const tileY = Math.floor((e.clientY - rect.top) / 48);
-
-            // 위치가 변경되었을 때만 업데이트
-            if (tileX !== dragStartX || tileY !== dragStartY) {
-                // 맵 범위 체크
-                if (tileX >= 0 && tileX < this.map.width && tileY >= 0 && tileY < this.map.height) {
-                    this.draggedEvent.x = tileX;
-                    this.draggedEvent.y = tileY;
-                    this.loadEvent();
-                    dragStartX = tileX;
-                    dragStartY = tileY;
-                }
-            }
         });
 
         canvas.addEventListener('mouseup', (e) => {
-            if (!isDragging || !this.draggedEvent) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const tileX = Math.floor((e.clientX - rect.left) / 48);
-            const tileY = Math.floor((e.clientY - rect.top) / 48);
-
-            // 다른 이벤트와 충돌 체크 (자기 자신 제외)
-            const collidingEvent = this.events.find(ev =>
-                ev !== this.draggedEvent && ev.x === tileX && ev.y === tileY
-            );
-
-            if (collidingEvent) {
-                // 충돌 시 원래 위치로 복귀
-                this.draggedEvent.x = this.dragStartPos.x;
-                this.draggedEvent.y = this.dragStartPos.y;
-                this.loadEvent();
-            }
-
-            isDragging = false;
-            this.draggedEvent = null;
-            this.dragStartPos = null;
         });
     }
 

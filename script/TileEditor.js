@@ -68,7 +68,7 @@ class TileEditor {
                 
                 // reset-zoom은 즉시 실행
                 if (tool === 'reset-zoom') {
-                    this.resetMapZoom();
+                    editor.resetMapZoom();
                     return;
                 }
                 
