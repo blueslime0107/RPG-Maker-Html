@@ -494,6 +494,21 @@ class MainEditor {
         return 'floor'; // 기본값
     }
 
+    getNormalTile(tileId) {
+        const s = TILE_SIZE;;
+        const sx = ((Math.floor(tileId / 128) % 2) * 8 + (tileId % 8)) * s;
+        const sy = (Math.floor((tileId % 256) / 8) % 16) * s;
+
+        let tileTypeIndex = 4
+        if (this.isTileB(tileId)) { tileTypeIndex = 5 }
+        else if (this.isTileC(tileId)) { tileTypeIndex = 6 }
+        else if (this.isTileD(tileId)) { tileTypeIndex = 7 }
+        else if (this.isTileE(tileId)) { tileTypeIndex = 8 }
+        const img = main.images.tilesets.get(mapViewer.loader.tilesetData.tilesetNames[tileTypeIndex]);
+
+        return { img, sx, sy }
+    }
+
     isShadowingTile(tileId) {
         return this.isTileA3(tileId) || this.isTileA4(tileId);
     }
@@ -1221,6 +1236,672 @@ class MainEditor {
         });
         cancelBtn.addEventListener('mouseout', () => {
             cancelBtn.style.background = '#3a3a3a';
+        });
+        buttonArea.appendChild(cancelBtn);
+
+        modalContainer.appendChild(buttonArea);
+
+        // ESC 키로 닫기
+        const escListener = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(overlay);
+                document.removeEventListener('keydown', escListener);
+            }
+        };
+        document.addEventListener('keydown', escListener);
+
+        overlay.appendChild(modalContainer);
+        document.body.appendChild(overlay);
+    }
+    // 캐릭터 선택 모달 (Character/Tileset)
+    showCharacterSelector(currentImage, onSelect) {
+        // 모달 오버레이
+        const overlay = document.createElement('div');
+        overlay.id = 'image-selector-overlay';
+        overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 11000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+
+        // 모달 컨테이너
+        const modalContainer = document.createElement('div');
+        modalContainer.style.cssText = `
+        background-color: #2b2b2b;
+        border: 2px solid #555;
+        border-radius: 8px;
+        width: 800px;
+        height: 600px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    `;
+
+        // 제목
+        const title = document.createElement('div');
+        title.textContent = '이미지 선택';
+        title.style.cssText = `
+        padding: 15px 20px;
+        border-bottom: 1px solid #555;
+        color: #fff;
+        font-size: 16px;
+        font-weight: bold;
+    `;
+        modalContainer.appendChild(title);
+
+        // 탭 버튼 (Character / Tileset)
+        const tabArea = document.createElement('div');
+        tabArea.style.cssText = `
+        display: flex;
+        gap: 4px;
+        padding: 8px 20px;
+        border-bottom: 1px solid #555;
+        background-color: #1a1a1a;
+    `;
+
+        const charTab = document.createElement('button');
+        charTab.textContent = 'Character';
+        charTab.style.cssText = `
+        padding: 6px 15px;
+        background-color: #3a3a3a;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        flex: 0 0 auto;
+    `;
+        tabArea.appendChild(charTab);
+
+        const tileTab = document.createElement('button');
+        tileTab.textContent = 'Tileset';
+        tileTab.style.cssText = `
+        padding: 6px 15px;
+        background-color: #3a3a3a;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        flex: 0 0 auto;
+    `;
+        tabArea.appendChild(tileTab);
+
+        modalContainer.appendChild(tabArea);
+
+        // 컨텐츠 영역
+        const contentArea = document.createElement('div');
+        contentArea.style.cssText = `
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+    `;
+
+        let currentTab = currentImage.tileset ? "tileset" : "character";
+
+        // Character 패널
+        const characterPanel = document.createElement('div');
+        characterPanel.style.cssText = `
+        display: ${currentTab === 'character' ? 'flex' : 'none'};
+        flex: 1;
+        flex-direction: row;
+    `;
+
+        const charListContainer = document.createElement('div');
+        charListContainer.style.cssText = `
+        width: 200px;
+        border-right: 1px solid #555;
+        overflow-y: auto;
+        background-color: #1a1a1a;
+    `;
+
+        const charactersList = [...main.images.characters.keys()]
+        let selectedCharName = currentImage.characterName
+
+        // 초기값 설정: 단일칩인 경우 selectedCharIndex는 항상 0
+        const isInitialBig = selectedCharName.includes('$');
+        let selectedCharIndex = isInitialBig ? 0 : currentImage.characterIndex
+        let selectedPattern = currentImage.pattern
+        let selectedDirection = currentImage.direction
+
+        // (없음) 항목 추가
+        const noneItem = document.createElement('div');
+        noneItem.textContent = '(없음)';
+        noneItem.style.cssText = `
+        padding: 10px 15px;
+        color: #999;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: background-color 0.2s;
+        font-style: italic;
+    `;
+
+        if (selectedCharName === '') {
+            noneItem.style.backgroundColor = '#3a3a3a';
+            noneItem.style.borderLeftColor = '#4080ff';
+        }
+
+        noneItem.addEventListener('mouseenter', () => {
+            if (selectedCharName !== '') {
+                noneItem.style.backgroundColor = '#2a2a2a';
+            }
+        });
+
+        noneItem.addEventListener('mouseleave', () => {
+            if (selectedCharName !== '') {
+                noneItem.style.backgroundColor = 'transparent';
+            }
+        });
+
+        noneItem.addEventListener('click', () => {
+            charListContainer.querySelectorAll('div').forEach(div => {
+                div.style.backgroundColor = 'transparent';
+                div.style.borderLeftColor = 'transparent';
+            });
+
+            noneItem.style.backgroundColor = '#3a3a3a';
+            noneItem.style.borderLeftColor = '#4080ff';
+            selectedCharName = '';
+            selectedCharIndex = 0;
+            selectedPattern = 0;
+            selectedDirection = 2;
+
+            updateCharGrid();
+        });
+
+        charListContainer.appendChild(noneItem);
+
+        charactersList.forEach(charName => {
+            const item = document.createElement('div');
+            item.textContent = charName;
+            item.style.cssText = `
+            padding: 10px 15px;
+            color: #fff;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: background-color 0.2s;
+        `;
+
+            if (charName === selectedCharName) {
+                item.style.backgroundColor = '#3a3a3a';
+                item.style.borderLeftColor = '#4080ff';
+            }
+
+            item.addEventListener('mouseenter', () => {
+                if (charName !== selectedCharName) {
+                    item.style.backgroundColor = '#2a2a2a';
+                }
+            });
+
+            item.addEventListener('mouseleave', () => {
+                if (charName !== selectedCharName) {
+                    item.style.backgroundColor = 'transparent';
+                }
+            });
+
+            item.addEventListener('click', () => {
+                // 이전 선택 제거
+                charListContainer.querySelectorAll('div').forEach(div => {
+                    div.style.backgroundColor = 'transparent';
+                    div.style.borderLeftColor = 'transparent';
+                });
+
+                // 새로 선택
+                item.style.backgroundColor = '#3a3a3a';
+                item.style.borderLeftColor = '#4080ff';
+                selectedCharName = charName;
+
+                // 단일칩 여부에 따라 초기값 설정
+                const isBigChar = charName.includes('$');
+                selectedCharIndex = isBigChar ? 0 : 0; // 단일칩이든 아니든 0부터 시작
+                selectedPattern = 0;
+                selectedDirection = 2;
+
+                // 그리드 업데이트
+                updateCharGrid();
+            });
+
+            charListContainer.appendChild(item);
+        });
+
+        characterPanel.appendChild(charListContainer);
+
+        // Character 그리드
+        const charGridContainer = document.createElement('div');
+        charGridContainer.style.cssText = `
+        flex: 1;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+    `;
+
+        const updateCharGrid = () => {
+            charGridContainer.innerHTML = '';
+
+            if (!selectedCharName) return;
+
+            const isBigName = selectedCharName.includes('$');
+            const img = new Image();
+
+            img.onload = () => {
+                const isBigName = selectedCharName.includes('$');
+
+                // 캔버스 크기를 이미지 크기에 따라 결정
+                let canvasWidth, canvasHeight, cellWidth, cellHeight, gridCols, gridRows;
+
+                if (isBigName) {
+                    // $문자: 3x4 단일 칩
+                    cellWidth = Math.max(img.width / 3, 40);
+                    cellHeight = Math.max(img.height / 4, 40);
+                    gridCols = 3;
+                    gridRows = 4;
+                    canvasWidth = img.width;
+                    canvasHeight = img.height;
+                } else {
+                    // 일반 캐릭터: 12x8 (4x2 캐릭터 배치 × 3x4 프레임)
+                    cellWidth = 40;
+                    cellHeight = 40;
+                    gridCols = 12;
+                    gridRows = 8;
+                    canvasWidth = 480;
+                    canvasHeight = 320;
+                }
+
+                const charCanvas = document.createElement('canvas');
+                charCanvas.width = canvasWidth;
+                charCanvas.height = canvasHeight;
+
+                const ctx = charCanvas.getContext('2d');
+                ctx.imageSmoothingEnabled = false;
+
+                // 이미지를 캔버스에 그리기
+                ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+
+                // 그리드 선 그리기
+                ctx.strokeStyle = '#4080ff80';
+                ctx.lineWidth = 1;
+
+                for (let i = 1; i < gridCols; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * cellWidth, 0);
+                    ctx.lineTo(i * cellWidth, canvasHeight);
+                    ctx.stroke();
+                }
+
+                for (let i = 1; i < gridRows; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * cellHeight);
+                    ctx.lineTo(canvasWidth, i * cellHeight);
+                    ctx.stroke();
+                }
+
+                // 현재 선택된 프레임 강조
+                const drawSelection = () => {
+                    if (isBigName) {
+                        // $문자는 3x4 단일 캐릭터
+                        const directionIndex = [2, 4, 6, 8].indexOf(selectedDirection);
+                        const x = selectedPattern * cellWidth;
+                        const y = directionIndex * cellHeight;
+
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x, y, cellWidth, cellHeight);
+                    } else {
+                        // 일반 캐릭터: 4x2 배치 + 3x4 프레임
+                        const charCol = selectedCharIndex % 4;
+                        const charRow = Math.floor(selectedCharIndex / 4);
+
+                        const directionIndex = [2, 4, 6, 8].indexOf(selectedDirection);
+
+                        const x = (charCol * 3 + selectedPattern) * cellWidth;
+                        const y = (charRow * 4 + directionIndex) * cellHeight;
+
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x, y, cellWidth, cellHeight);
+                    }
+                };
+
+                drawSelection();
+
+                charCanvas.style.cssText = `
+                border: 1px solid #ccc;
+                cursor: pointer;
+                image-rendering: pixelated;
+            `;
+
+                // 클릭 핸들러
+                charCanvas.addEventListener('click', (e) => {
+                    const rect = charCanvas.getBoundingClientRect();
+                    const clientX = e.clientX - rect.left;
+                    const clientY = e.clientY - rect.top;
+
+                    // 캔버스의 실제 크기와 표시 크기 비율
+                    const scaleX = canvasWidth / rect.width;
+                    const scaleY = canvasHeight / rect.height;
+
+                    // 캔버스 좌표로 변환
+                    const canvasX = clientX * scaleX;
+                    const canvasY = clientY * scaleY;
+
+                    // 그리드에서의 셀 위치
+                    let clickCol = Math.floor(canvasX / cellWidth);
+                    let clickRow = Math.floor(canvasY / cellHeight);
+
+                    // 범위 체크
+                    clickCol = Math.max(0, Math.min(clickCol, gridCols - 1));
+                    clickRow = Math.max(0, Math.min(clickRow, gridRows - 1));
+
+                    if (isBigName) {
+                        // $문자: 3x4 단일 캐릭터
+                        selectedCharIndex = 0;
+                        selectedPattern = clickCol;
+                        selectedDirection = [2, 4, 6, 8][clickRow];
+                    } else {
+                        // 일반 캐릭터: 4x2 캐릭터 배치 × 3x4 프레임
+                        const charCol = Math.floor(clickCol / 3);
+                        const charRow = Math.floor(clickRow / 4);
+
+                        selectedCharIndex = charRow * 4 + charCol;
+                        selectedPattern = clickCol % 3;
+                        selectedDirection = [2, 4, 6, 8][clickRow % 4];
+                    }
+
+                    updateCharGrid();
+                });
+
+                charGridContainer.appendChild(charCanvas);
+            };
+
+            img.onerror = () => {
+                charGridContainer.innerHTML = '<div style="color: #999;">이미지를 불러올 수 없습니다.</div>';
+            };
+
+            img.src = `project/img/characters/${selectedCharName}.png`;
+        };
+
+        updateCharGrid();
+        characterPanel.appendChild(charGridContainer);
+        contentArea.appendChild(characterPanel);
+
+        // Tileset 패널
+        const tilesetPanel = document.createElement('div');
+        tilesetPanel.style.cssText = `
+        display: ${currentTab === 'tileset' ? 'flex' : 'none'};
+        flex: 1;
+        flex-direction: row;
+        overflow: hidden;
+    `;
+
+        // 왼쪽: B, C, D 리스트
+        const tileListContainer = document.createElement('div');
+        tileListContainer.style.cssText = `
+        width: 200px;
+        border-right: 1px solid #555;
+        overflow-y: auto;
+        background-color: #1a1a1a;
+    `;
+
+        let selectedTileLayer = 'B';
+        let selectedTileId = currentImage.type === 'tileset' ? (currentImage.tileId || 256) : 256;
+
+        // B, C, D 리스트 항목
+        ['B', 'C', 'D'].forEach(layer => {
+            const item = document.createElement('div');
+            item.textContent = `Layer ${layer}`;
+            item.style.cssText = `
+            padding: 10px 15px;
+            color: #fff;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: background-color 0.2s;
+        `;
+
+            if (layer === selectedTileLayer) {
+                item.style.backgroundColor = '#3a3a3a';
+                item.style.borderLeftColor = '#4080ff';
+            }
+
+            item.addEventListener('mouseenter', () => {
+                if (layer !== selectedTileLayer) {
+                    item.style.backgroundColor = '#2a2a2a';
+                }
+            });
+
+            item.addEventListener('mouseleave', () => {
+                if (layer !== selectedTileLayer) {
+                    item.style.backgroundColor = 'transparent';
+                }
+            });
+
+            item.addEventListener('click', () => {
+                // 이전 선택 제거
+                tileListContainer.querySelectorAll('div').forEach(div => {
+                    div.style.backgroundColor = 'transparent';
+                    div.style.borderLeftColor = 'transparent';
+                });
+
+                // 새로 선택
+                item.style.backgroundColor = '#3a3a3a';
+                item.style.borderLeftColor = '#4080ff';
+                selectedTileLayer = layer;
+
+                // 그리드 업데이트
+                updateTileGrid();
+            });
+
+            tileListContainer.appendChild(item);
+        });
+
+        tilesetPanel.appendChild(tileListContainer);
+
+        // 오른쪽: 타일 그리드
+        const tileGridContainer = document.createElement('div');
+        tileGridContainer.style.cssText = `
+        flex: 1;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        overflow: auto;
+        background-color: #1a1a1a;
+    `;
+
+        const updateTileGrid = () => {
+            tileGridContainer.innerHTML = '';
+
+            // 레이어별 타일 범위
+            const layerRanges = {
+                'B': { start: 256, end: 512 },
+                'C': { start: 512, end: 768 },
+                'D': { start: 768, end: 1024 }
+            };
+
+            const range = layerRanges[selectedTileLayer];
+            if (!range) return;
+
+            const tileCanvas = document.createElement('canvas');
+            const tileSelectionRect = document.createElement('div');
+
+            tileSelectionRect.style.cssText = `
+            position: absolute;
+            border: 3px solid #4080ff;
+            box-sizing: border-box;
+            pointer-events: none;
+        `;
+
+            // 타일 이미지 로드
+            const sampleTile = this.getNormalTile(range.start);
+            if (!sampleTile || !sampleTile.img) {
+                tileGridContainer.innerHTML = '<div style="color: #999;">타일을 불러올 수 없습니다.</div>';
+                return;
+            }
+
+            const tilesetImg = sampleTile.img;
+            const tileWidth = 48;
+            const tileHeight = 48;
+            const tilesPerRow = 16;
+            const tilesInRange = range.end - range.start;
+            const rowsInRange = Math.ceil(tilesInRange / tilesPerRow);
+
+            tileCanvas.width = tilesetImg.width;
+            tileCanvas.height = tilesetImg.height;
+            const ctx = tileCanvas.getContext('2d');
+            ctx.drawImage(tilesetImg, 0, 0);
+
+            tileCanvas.style.cssText = `
+            border: 1px solid #555;
+            max-width: 100%;
+            max-height: 100%;
+            image-rendering: pixelated;
+        `;
+
+            // 선택 박스 위치 업데이트
+            const updateTileSelection = () => {
+                const canvasRect = tileCanvas.getBoundingClientRect();
+                const scaleX = canvasRect.width / tilesetImg.width;
+                const scaleY = canvasRect.height / tilesetImg.height;
+
+                const relativeId = selectedTileId - range.start;
+                const col = relativeId % tilesPerRow;
+                const row = Math.floor(relativeId / tilesPerRow);
+
+                const pixelX = col * tileWidth;
+                const pixelY = row * tileHeight;
+
+                tileSelectionRect.style.left = (pixelX * scaleX) + 'px';
+                tileSelectionRect.style.top = (pixelY * scaleY) + 'px';
+                tileSelectionRect.style.width = (tileWidth * scaleX) + 'px';
+                tileSelectionRect.style.height = (tileHeight * scaleY) + 'px';
+            };
+
+            // 클릭 이벤트
+            tileCanvas.addEventListener('click', (e) => {
+                const rect = tileCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const scaleX = rect.width / tilesetImg.width;
+                const scaleY = rect.height / tilesetImg.height;
+
+                const col = Math.floor(x / (tileWidth * scaleX));
+                const row = Math.floor(y / (tileHeight * scaleY));
+
+                const relativeId = row * tilesPerRow + col;
+                if (relativeId < tilesInRange) {
+                    selectedTileId = range.start + relativeId;
+                    updateTileSelection();
+                }
+            });
+
+            const tileWrapper = document.createElement('div');
+            tileWrapper.style.cssText = `
+            position: relative;
+            display: inline-block;
+        `;
+
+            tileWrapper.appendChild(tileCanvas);
+            tileWrapper.appendChild(tileSelectionRect);
+            tileGridContainer.appendChild(tileWrapper);
+
+            // 초기 선택 박스 위치 설정
+            setTimeout(updateTileSelection, 0);
+        };
+
+        updateTileGrid();
+        contentArea.appendChild(tilesetPanel);
+
+        // 탭 버튼 이벤트
+        charTab.addEventListener('click', () => {
+            currentTab = 'character';
+            characterPanel.style.display = 'flex';
+            tilesetPanel.style.display = 'none';
+            charTab.style.backgroundColor = '#4a4a4a';
+            tileTab.style.backgroundColor = '#3a3a3a';
+        });
+
+        tileTab.addEventListener('click', () => {
+            currentTab = 'tileset';
+            characterPanel.style.display = 'none';
+            tilesetPanel.style.display = 'flex';
+            tileTab.style.backgroundColor = '#4a4a4a';
+            charTab.style.backgroundColor = '#3a3a3a';
+        });
+
+        if (currentTab === 'character') {
+            charTab.style.backgroundColor = '#4a4a4a';
+        } else {
+            tileTab.style.backgroundColor = '#4a4a4a';
+        }
+
+        modalContainer.appendChild(contentArea);
+
+        // 하단 버튼
+        const buttonArea = document.createElement('div');
+        buttonArea.style.cssText = `
+        padding: 15px 20px;
+        border-top: 1px solid #555;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    `;
+
+        // 확인 버튼
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = '확인';
+        confirmBtn.style.cssText = `
+        padding: 8px 20px;
+        background-color: #4080ff;
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: bold;
+    `;
+        confirmBtn.addEventListener('click', () => {
+            if (currentTab === 'character') {
+                onSelect({
+                    characterName: selectedCharName,
+                    characterIndex: selectedCharIndex,
+                    pattern: selectedPattern,
+                    direction: selectedDirection,
+                    tileId: 0
+                });
+            } else {
+                onSelect({
+                    characterName: '',
+                    characterIndex: 0,
+                    pattern: 0,
+                    direction: 2,
+                    tileId: selectedTileId
+                });
+            }
+            document.body.removeChild(overlay);
+        });
+        buttonArea.appendChild(confirmBtn);
+
+        // 취소 버튼
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '취소';
+        cancelBtn.style.cssText = `
+        padding: 8px 20px;
+        background-color: #555;
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+    `;
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(overlay);
         });
         buttonArea.appendChild(cancelBtn);
 

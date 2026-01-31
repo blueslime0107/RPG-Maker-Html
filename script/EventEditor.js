@@ -5,7 +5,7 @@ class EventEditor {
         this.page = null;
         this.condition = null
         this.cmdList = null;
-        this.currentPageIndex = 0; // 현재 페이지 인덱스 초기화
+        this.pageIndex = 0; // 현재 페이지 인덱스 초기화
         this.editor = new EventCodeEditor(document.getElementById('ins-contents-list')); // EventEditor 인스턴스 (독립적으로 생성)
         return
         this.events = null
@@ -18,7 +18,7 @@ class EventEditor {
         this.draggedEvent = null; // 드래그 중인 이벤트
         this.dragStartPos = null; // 드래그 시작 위치
         this.event = null; // 현재 선택된 이벤트
-        this.currentPageIndex = 0; // 현재 페이지 인덱스
+        this.pageIndex = 0; // 현재 페이지 인덱스
         this.initClickEvent()
         this.initDragEvent();
         this.initInspectorTabs();
@@ -36,6 +36,20 @@ class EventEditor {
     }
 
     initInspector(){
+
+//         conditions: {actorId: 1, actorValid: false, itemId: 1, itemValid: false, selfSwitchCh: undefined, …}
+// directionFix: false
+// image: characterName: 'Actor1', characterIndex: 2, pattern: 1, direction: 2, tileId: 0}
+// list: (3) [{…}, {…}, {…}]
+// moveFrequency: 3
+// moveRoute: {list: Array(1), repeat: true, skippable: false, wait: false}
+// moveSpeed: 3
+// moveType: 0
+// priorityType: 1
+// stepAnime: false
+// through: false
+// trigger: 0
+// walkAnime: true
         // 스위치 컨테이너 초기화
         const switchContainer = document.getElementById('ins-switch');
         switchContainer.style.cssText = `
@@ -171,6 +185,64 @@ class EventEditor {
             container.appendChild(row2);
             return container;
         })());
+        
+        const characterContainer = document.getElementById('ins-preview');
+        characterContainer.appendChild((() => {
+            this.charSelecter = new CharacterEditor({
+                change: (value) => {
+                    this.page.image = value
+                    if(this.pageIndex == 0){
+                        mapViewer.renderEvent()
+                    }
+                }
+            })
+            return this.charSelecter.html;
+        })());
+
+        const optionContainer = document.getElementById('ins-option');
+        optionContainer.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 8px;
+        `;
+        optionContainer.appendChild((() => {
+            this.stepAnimeToggle = new CheckboxFieldEditor({
+                label: '보행 움직임',
+                change: (value) => {
+                    this.page.stepAnime = value;
+                }
+            })
+            return this.stepAnimeToggle.html;
+        })());
+        optionContainer.appendChild((() => {
+            this.walkAnimeToggle = new CheckboxFieldEditor({
+                label: '제자리 움직임',
+                change: (value) => {
+                    this.page.walkAnime = value;
+                }
+            })
+            return this.walkAnimeToggle.html;
+        })());
+        optionContainer.appendChild((() => {
+            this.directionFixToggle = new CheckboxFieldEditor({
+                label: '방향 고정',
+                change: (value) => {
+                    this.page.directionFix = value;
+                }
+            })
+            return this.directionFixToggle.html;
+        })());
+        optionContainer.appendChild((() => {
+            this.throughToggle = new CheckboxFieldEditor({
+                label: '통과',
+                change: (value) => {
+                    this.page.through = value;
+                }
+            })
+            return this.throughToggle.html;
+        })());
+        
     }
     
     // 탭 전환 (페이지 설정 / 실행 내용)
@@ -188,8 +260,8 @@ class EventEditor {
             document.querySelector('[data-tab="commands"]').classList.add('active');
 
             // 커맨드 목록 업데이트
-            if (this.event && this.currentPageIndex !== undefined) {
-                const page = this.event.pages[this.currentPageIndex];
+            if (this.event && this.pageIndex !== undefined) {
+                const page = this.event.pages[this.pageIndex];
                 if (page) {
                     this.editor.displayCommandList(page.list);
                 }
@@ -200,7 +272,7 @@ class EventEditor {
     // 인스펙터에 데이터 로드
     showInspector(event) {
         this.event = event; // 현재 선택된 이벤트 보관
-        this.currentPageIndex = 0; // 현재 페이지 인덱스 초기화
+        this.pageIndex = 0; // 현재 페이지 인덱스 초기화
 
         // UI 전환
         document.getElementById('inspector-empty').style.display = 'none';
@@ -220,6 +292,7 @@ class EventEditor {
     // 페이지 데이터 로드
     loadPageToInspector(event, pageIndex) {
         this.page = event.pages[pageIndex];
+        this.pageIndex = pageIndex;
         this.condition = this.page.conditions
 
         this.switch1Field.onChange(this.condition.switch1Id)
@@ -231,215 +304,11 @@ class EventEditor {
         this.variableField.onChange(this.condition.variableId)
         this.variableToggle.onChange(this.condition.variableValid)
         this.varNumField.onChange(this.condition.variableValue)
-
-        return
-        // 스위치 2
-        this.switch2Field = new SwitchFieldEditor({
-            label: '스위치2',
-            change: (value) => {
-                conditions.switch2Id = value
-            }
-        });
-        switchContainer.appendChild(this.switch2Field.html);
-
-        // 셀프 스위치
-        const selfSwitchCheck = document.getElementById('ins-self-switch-check');
-        const selfSwitchInput = document.getElementById('ins-self-switch');
-        selfSwitchCheck.checked = conditions.selfSwitchValid;
-        selfSwitchInput.value = conditions.selfSwitchCh || 'A';
-        selfSwitchInput.disabled = !conditions.selfSwitchValid;
-        selfSwitchInput.style.opacity = conditions.selfSwitchValid ? '1' : '0.4';
-
-        // 변수
-        const variableCheck = document.getElementById('ins-variable-check');
-        const variableValueInput = document.getElementById('ins-variable-value');
-        const variableName = document.getElementById('ins-variable-name');
-        const variableSelector = document.getElementById('ins-variable-selector');
-
-        variableCheck.checked = conditions.variableValid;
-        variableValueInput.value = conditions.variableValue || 0;
-        variableValueInput.disabled = !conditions.variableValid;
-        variableValueInput.style.opacity = conditions.variableValid ? '1' : '0.4';
-
-        // 변수 이름 표시
-        const updateVariableName = () => {
-            const id = conditions.variableId || 0;
-            const name = this.getVariableName(id);
-            if (id > 0) {
-                variableSelector.textContent = `[${id}] ${name}`;
-            } else {
-                variableSelector.textContent = '선택';
-            }
-            variableName.textContent = '';
-        };
-        updateVariableName();
-
-        // 변수 선택 버튼
-        if (variableSelector) {
-            variableSelector.onclick = () => {
-                const currentId = conditions.variableId || 1;
-                this.showVariableSelector(currentId, (variableId) => {
-                    conditions.variableId = variableId;
-                    updateVariableName();
-                });
-            };
-        }
-
-        // 체크박스 변경 이벤트 리스너
-        const updateConditionStates = () => {
-            const selfSwitchChecked = document.getElementById('ins-self-switch-check').checked;
-            const variableChecked = document.getElementById('ins-variable-check').checked;
-
-            document.getElementById('ins-self-switch').disabled = !selfSwitchChecked;
-            document.getElementById('ins-self-switch').style.opacity = selfSwitchChecked ? '1' : '0.4';
-
-            document.getElementById('ins-variable-selector').disabled = !variableChecked;
-            document.getElementById('ins-variable-value').disabled = !variableChecked;
-            document.getElementById('ins-variable-selector').style.opacity = variableChecked ? '1' : '0.4';
-            document.getElementById('ins-variable-value').style.opacity = variableChecked ? '1' : '0.4';
-        };
-
-        // 초기 상태 설정
-        updateConditionStates();
-
-        selfSwitchCheck.addEventListener('change', updateConditionStates);
-        variableCheck.addEventListener('change', updateConditionStates);
-
-        // 옵션 토글 버튼들
-        const toggleButtons = document.querySelectorAll('.ins-toggle-btn');
-        toggleButtons.forEach(btn => {
-            const setting = btn.dataset.setting;
-            const currentValue = this.page[setting];
-            btn.textContent = currentValue ? 'ON' : 'OFF';
-            btn.style.backgroundColor = currentValue ? '#2a5a2a' : '#1a1a1a';
-
-            btn.addEventListener('click', () => {
-                this.page[setting] = !this.page[setting];
-                btn.textContent = this.page[setting] ? 'ON' : 'OFF';
-                btn.style.backgroundColor = this.page[setting] ? '#2a5a2a' : '#1a1a1a';
-            });
-        });
-
-        // 우선권
-        const prioritySelect = document.getElementById('ins-priority');
-        prioritySelect.value = this.page.priorityType || 0;
-
-        // 발동
-        const triggerSelect = document.getElementById('ins-trigger');
-        triggerSelect.value = this.page.trigger || 0;
-        // 이동 타입
-        const moveTypeSelect = document.getElementById('ins-move-type');
-        moveTypeSelect.value = this.page.moveType || 0;
-
-        // 이동 루트 버튼
-        const moveRouteBtn = document.getElementById('ins-move-route-btn');
-        moveRouteBtn.disabled = (this.page.moveType !== 3); // 타입이 커스텀(3)일 때만 활성화
-        moveRouteBtn.style.opacity = (this.page.moveType === 3) ? '1' : '0.5';
-
-        // 이동 타입 변경 시 이동 루트 버튼 활성화/비활성화
-        moveTypeSelect.addEventListener('change', () => {
-            this.page.moveType = parseInt(moveTypeSelect.value);
-            moveRouteBtn.disabled = (this.page.moveType !== 3);
-            moveRouteBtn.style.opacity = (this.page.moveType === 3) ? '1' : '0.5';
-        });
-
-        // 이동 루트 버튼 클릭
-        moveRouteBtn.addEventListener('click', () => {
-            if (!this.page.moveRoute) {
-                this.page.moveRoute = { list: [{ code: 0, parameters: [] }], repeat: false, skippable: false, wait: false };
-            }
-            this.showMoveRouteEditor(-1, this.page.moveRoute, (characterId, moveRoute) => {
-                this.page.moveRoute = moveRoute;
-            });
-        });
-
-        // 속도와 빈도
-        const moveSpeedSelect = document.getElementById('ins-move-speed');
-        moveSpeedSelect.value = this.page.moveSpeed || 3;
-
-        const moveFreqSelect = document.getElementById('ins-move-freq');
-        moveFreqSelect.value = this.page.moveFrequency || 3;
-        // 변경 이벤트 리스너
-        prioritySelect.addEventListener('change', () => {
-            this.page.priorityType = parseInt(prioritySelect.value);
-        });
-
-        triggerSelect.addEventListener('change', () => {
-            this.page.trigger = parseInt(triggerSelect.value);
-        });
-
-        moveSpeedSelect.addEventListener('change', () => {
-            this.page.moveSpeed = parseInt(moveSpeedSelect.value);
-        });
-
-        moveFreqSelect.addEventListener('change', () => {
-            this.page.moveFrequency = parseInt(moveFreqSelect.value);
-        });
-
-        // 이미지 미리보기
-        const previewArea = document.getElementById('ins-preview');
-        if (previewArea) {
-            previewArea.style.cursor = 'pointer';
-
-            // 기존 이벤트 리스너 제거 (새로운 previewArea로 교체)
-            const newPreviewArea = previewArea.cloneNode(false);
-            previewArea.parentNode.replaceChild(newPreviewArea, previewArea);
-
-            // 새 previewArea에 대해 이벤트 등록
-            const updatedPreviewArea = document.getElementById('ins-preview');
-            updatedPreviewArea.innerHTML = '';
-
-            // 클릭 시 선택 모달 열기
-            updatedPreviewArea.addEventListener('click', () => {
-                // 이미 열려있는 모달 확인
-                if (document.getElementById('image-selector-overlay')) {
-                    return;
-                }
-
-                // 현재 페이지 이미지 데이터를 항상 새로 생성 (매번 최신값 반영)
-                const currentPageImage = {
-                    type: 'character', // 기본값
-                    ...this.page.image
-                };
-
-                // 타입 재결정 - tileId가 있으면 tileset
-                if (this.page.image?.tileId) {
-                    currentPageImage.type = 'tileset';
-                } else if (this.page.image?.characterName) {
-                    currentPageImage.type = 'character';
-                }
-                this.showImageSelector(currentPageImage, (newImage) => {
-
-                    // 페이지 객체 업데이트
-                    if (newImage.type === 'character') {
-                        this.page.image = {
-                            characterName: newImage.name,
-                            characterIndex: newImage.index,
-                            pattern: newImage.pattern || 0,
-                            direction: newImage.direction || 2,
-                            tileId: 0
-                        };
-                    } else if (newImage.type === 'tileset') {
-                        this.page.image = {
-                            characterName: '',
-                            characterIndex: 0,
-                            pattern: 0,
-                            direction: 2,
-                            tileId: newImage.tileId
-                        };
-                    }
-
-                    // 미리보기 다시 그리기
-                    this.drawInspectorPreview(event, pageIndex);
-                });
-            });
-        }
-
-        // 실행 내용 표시
-        this.editor.displayCommandList(this.page.list);
-
-        // 이미지 미리보기
-        this.drawInspectorPreview(event, pageIndex);
+        this.charSelecter.onChange(this.page.image)
+        this.stepAnimeToggle.onChange(this.page.stepAnime)
+        this.walkAnimeToggle.onChange(this.page.walkAnime)
+        this.directionFixToggle.onChange(this.page.directionFix)
+        this.throughToggle.onChange(this.page.through)
     }
     hideInspector(){
         this.event = null;
@@ -461,47 +330,6 @@ class EventEditor {
         });
     }
 
-    // 3. 인스펙터용 이미지 미리보기 (작은 캔버스에 그리기)
-    drawInspectorPreview(event, pageIndex) {
-        const previewArea = document.getElementById('ins-preview');
-
-        // 기존 캔버스 제거
-        const oldCanvas = previewArea.querySelector('canvas');
-        if (oldCanvas) oldCanvas.remove();
-
-        const page = event.pages[pageIndex || 0];
-        if (!page) return;
-
-        const info = page.image;
-        if (!info.characterName && !info.tileId) {
-            previewArea.innerHTML = '<div style="color: #888;">이미지 없음</div>';
-            return;
-        }
-
-        // 새 캔버스 생성
-        const canvas = document.createElement('canvas');
-        canvas.width = 96;
-        canvas.height = 96;
-        canvas.style.border = '1px solid #555';
-        canvas.style.backgroundColor = '#1a1a1a';
-        previewArea.innerHTML = '';
-        previewArea.appendChild(canvas);
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (info.characterName) {
-            editor.drawCharacter(ctx,info,24,24)
-        } else if (info.tileId) {
-            // 타일 미리보기
-            try {
-                const tile = main.mapManager.loader.getNormalTile(info.tileId);
-                ctx.drawImage(tile.img, tile.sx, tile.sy, 48, 48, 24, 24, 48, 48);
-            } catch (e) {
-                console.error('[drawInspectorPreview] 타일 로드 오류:', e);
-                previewArea.innerHTML = '<div style="color: #888;">타일 로드 실패</div>';
-            }
-        }
-    }
 
 
 
@@ -654,8 +482,8 @@ class EventEditor {
         const newBtn = document.getElementById('ins-btn-new');
         if (newBtn) {
             newBtn.addEventListener('click', () => {
-                if (!this.event || this.currentPageIndex === undefined) return;
-                const page = this.event.pages[this.currentPageIndex];
+                if (!this.event || this.pageIndex === undefined) return;
+                const page = this.event.pages[this.pageIndex];
                 if (!page) return;
                 const lastIndex = page.list.length - 1;
                 this.editor.showCommandList(lastIndex, page.list);
@@ -675,8 +503,8 @@ class EventEditor {
         const pasteBtn = document.getElementById('ins-btn-paste');
         if (pasteBtn) {
             pasteBtn.addEventListener('click', () => {
-                if (!this.selectedCommand || !this.event || this.currentPageIndex === undefined) return;
-                const page = this.event.pages[this.currentPageIndex];
+                if (!this.selectedCommand || !this.event || this.pageIndex === undefined) return;
+                const page = this.event.pages[this.pageIndex];
                 if (!page) return;
                 this.editor.pasteCommand(this.selectedCommand.index, page.list);
             });
@@ -686,9 +514,9 @@ class EventEditor {
         const deleteBtn = document.getElementById('ins-btn-delete');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', () => {
-                if (!this.selectedCommand || !this.event || this.currentPageIndex === undefined) return;
+                if (!this.selectedCommand || !this.event || this.pageIndex === undefined) return;
                 if (this.selectedCommand.cmd.code === 0) return; // 빈 코드는 삭제 불가
-                const page = this.event.pages[this.currentPageIndex];
+                const page = this.event.pages[this.pageIndex];
                 if (!page) return;
                 this.editor.deleteCommand(this.selectedCommand.index, page.list);
             });
@@ -698,8 +526,8 @@ class EventEditor {
         const clearBtn = document.getElementById('ins-btn-clear');
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
-                if (!this.event || this.currentPageIndex === undefined) return;
-                const page = this.event.pages[this.currentPageIndex];
+                if (!this.event || this.pageIndex === undefined) return;
+                const page = this.event.pages[this.pageIndex];
                 if (!page) return;
                 if (!confirm('모든 실행 내용을 삭제하시겠습니까?')) return;
                 page.list = [{ code: 0, indent: 0, parameters: [] }];
@@ -923,675 +751,6 @@ class EventEditor {
         });
     }
 
-    // 이미지 선택 모달 (Character/Tileset)
-    showImageSelector(currentImage, onSelect) {
-        // 모달 오버레이
-        const overlay = document.createElement('div');
-        overlay.id = 'image-selector-overlay';
-        overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.8);
-        z-index: 11000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-
-        // 모달 컨테이너
-        const modalContainer = document.createElement('div');
-        modalContainer.style.cssText = `
-        background-color: #2b2b2b;
-        border: 2px solid #555;
-        border-radius: 8px;
-        width: 800px;
-        height: 600px;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    `;
-
-        // 제목
-        const title = document.createElement('div');
-        title.textContent = '이미지 선택';
-        title.style.cssText = `
-        padding: 15px 20px;
-        border-bottom: 1px solid #555;
-        color: #fff;
-        font-size: 16px;
-        font-weight: bold;
-    `;
-        modalContainer.appendChild(title);
-
-        // 탭 버튼 (Character / Tileset)
-        const tabArea = document.createElement('div');
-        tabArea.style.cssText = `
-        display: flex;
-        gap: 4px;
-        padding: 8px 20px;
-        border-bottom: 1px solid #555;
-        background-color: #1a1a1a;
-    `;
-
-        const charTab = document.createElement('button');
-        charTab.textContent = 'Character';
-        charTab.style.cssText = `
-        padding: 6px 15px;
-        background-color: #3a3a3a;
-        border: 1px solid #555;
-        border-radius: 4px;
-        color: #fff;
-        cursor: pointer;
-        flex: 0 0 auto;
-    `;
-        tabArea.appendChild(charTab);
-
-        const tileTab = document.createElement('button');
-        tileTab.textContent = 'Tileset';
-        tileTab.style.cssText = `
-        padding: 6px 15px;
-        background-color: #3a3a3a;
-        border: 1px solid #555;
-        border-radius: 4px;
-        color: #fff;
-        cursor: pointer;
-        flex: 0 0 auto;
-    `;
-        tabArea.appendChild(tileTab);
-
-        modalContainer.appendChild(tabArea);
-
-        // 컨텐츠 영역
-        const contentArea = document.createElement('div');
-        contentArea.style.cssText = `
-        display: flex;
-        flex: 1;
-        overflow: hidden;
-    `;
-
-        let currentTab = currentImage.type || 'character';
-
-        // Character 패널
-        const characterPanel = document.createElement('div');
-        characterPanel.style.cssText = `
-        display: ${currentTab === 'character' ? 'flex' : 'none'};
-        flex: 1;
-        flex-direction: row;
-    `;
-
-        const charListContainer = document.createElement('div');
-        charListContainer.style.cssText = `
-        width: 200px;
-        border-right: 1px solid #555;
-        overflow-y: auto;
-        background-color: #1a1a1a;
-    `;
-
-        const charactersList = main.charactersList || [];
-        let selectedCharName = currentImage.type === 'character' ? (currentImage.characterName || '') : '';
-
-        // 초기값 설정: 단일칩인 경우 selectedCharIndex는 항상 0
-        const isInitialBig = selectedCharName.includes('$');
-        let selectedCharIndex = isInitialBig ? 0 : (currentImage.type === 'character' ? (currentImage.characterIndex || 0) : 0);
-        let selectedPattern = currentImage.type === 'character' ? (currentImage.pattern || 0) : 0;
-        let selectedDirection = currentImage.type === 'character' ? (currentImage.direction || 2) : 2;
-        let charGridInitialized = false;
-
-        // (없음) 항목 추가
-        const noneItem = document.createElement('div');
-        noneItem.textContent = '(없음)';
-        noneItem.style.cssText = `
-        padding: 10px 15px;
-        color: #999;
-        cursor: pointer;
-        border-left: 3px solid transparent;
-        transition: background-color 0.2s;
-        font-style: italic;
-    `;
-
-        if (selectedCharName === '') {
-            noneItem.style.backgroundColor = '#3a3a3a';
-            noneItem.style.borderLeftColor = '#4080ff';
-        }
-
-        noneItem.addEventListener('mouseenter', () => {
-            if (selectedCharName !== '') {
-                noneItem.style.backgroundColor = '#2a2a2a';
-            }
-        });
-
-        noneItem.addEventListener('mouseleave', () => {
-            if (selectedCharName !== '') {
-                noneItem.style.backgroundColor = 'transparent';
-            }
-        });
-
-        noneItem.addEventListener('click', () => {
-            charListContainer.querySelectorAll('div').forEach(div => {
-                div.style.backgroundColor = 'transparent';
-                div.style.borderLeftColor = 'transparent';
-            });
-
-            noneItem.style.backgroundColor = '#3a3a3a';
-            noneItem.style.borderLeftColor = '#4080ff';
-            selectedCharName = '';
-            selectedCharIndex = 0;
-            selectedPattern = 0;
-            selectedDirection = 2;
-
-            updateCharGrid();
-        });
-
-        charListContainer.appendChild(noneItem);
-
-        charactersList.forEach(charName => {
-            const item = document.createElement('div');
-            item.textContent = charName;
-            item.style.cssText = `
-            padding: 10px 15px;
-            color: #fff;
-            cursor: pointer;
-            border-left: 3px solid transparent;
-            transition: background-color 0.2s;
-        `;
-
-            if (charName === selectedCharName) {
-                item.style.backgroundColor = '#3a3a3a';
-                item.style.borderLeftColor = '#4080ff';
-            }
-
-            item.addEventListener('mouseenter', () => {
-                if (charName !== selectedCharName) {
-                    item.style.backgroundColor = '#2a2a2a';
-                }
-            });
-
-            item.addEventListener('mouseleave', () => {
-                if (charName !== selectedCharName) {
-                    item.style.backgroundColor = 'transparent';
-                }
-            });
-
-            item.addEventListener('click', () => {
-                // 이전 선택 제거
-                charListContainer.querySelectorAll('div').forEach(div => {
-                    div.style.backgroundColor = 'transparent';
-                    div.style.borderLeftColor = 'transparent';
-                });
-
-                // 새로 선택
-                item.style.backgroundColor = '#3a3a3a';
-                item.style.borderLeftColor = '#4080ff';
-                selectedCharName = charName;
-
-                // 단일칩 여부에 따라 초기값 설정
-                const isBigChar = charName.includes('$');
-                selectedCharIndex = isBigChar ? 0 : 0; // 단일칩이든 아니든 0부터 시작
-                selectedPattern = 0;
-                selectedDirection = 2;
-
-                // 그리드 업데이트
-                updateCharGrid();
-            });
-
-            charListContainer.appendChild(item);
-        });
-
-        characterPanel.appendChild(charListContainer);
-
-        // Character 그리드
-        const charGridContainer = document.createElement('div');
-        charGridContainer.style.cssText = `
-        flex: 1;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        overflow: auto;
-    `;
-
-        const updateCharGrid = () => {
-            charGridContainer.innerHTML = '';
-
-            if (!selectedCharName) return;
-
-            const isBigName = selectedCharName.includes('$');
-            const img = new Image();
-
-            img.onload = () => {
-                const isBigName = selectedCharName.includes('$');
-
-                // 캔버스 크기를 이미지 크기에 따라 결정
-                let canvasWidth, canvasHeight, cellWidth, cellHeight, gridCols, gridRows;
-
-                if (isBigName) {
-                    // $문자: 3x4 단일 칩
-                    cellWidth = Math.max(img.width / 3, 40);
-                    cellHeight = Math.max(img.height / 4, 40);
-                    gridCols = 3;
-                    gridRows = 4;
-                    canvasWidth = img.width;
-                    canvasHeight = img.height;
-                } else {
-                    // 일반 캐릭터: 12x8 (4x2 캐릭터 배치 × 3x4 프레임)
-                    cellWidth = 40;
-                    cellHeight = 40;
-                    gridCols = 12;
-                    gridRows = 8;
-                    canvasWidth = 480;
-                    canvasHeight = 320;
-                }
-
-                const charCanvas = document.createElement('canvas');
-                charCanvas.width = canvasWidth;
-                charCanvas.height = canvasHeight;
-
-                const ctx = charCanvas.getContext('2d');
-                ctx.imageSmoothingEnabled = false;
-
-                // 이미지를 캔버스에 그리기
-                ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-
-                // 그리드 선 그리기
-                ctx.strokeStyle = '#4080ff80';
-                ctx.lineWidth = 1;
-
-                for (let i = 1; i < gridCols; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(i * cellWidth, 0);
-                    ctx.lineTo(i * cellWidth, canvasHeight);
-                    ctx.stroke();
-                }
-
-                for (let i = 1; i < gridRows; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, i * cellHeight);
-                    ctx.lineTo(canvasWidth, i * cellHeight);
-                    ctx.stroke();
-                }
-
-                // 현재 선택된 프레임 강조
-                const drawSelection = () => {
-                    if (isBigName) {
-                        // $문자는 3x4 단일 캐릭터
-                        const directionIndex = [2, 4, 6, 8].indexOf(selectedDirection);
-                        const x = selectedPattern * cellWidth;
-                        const y = directionIndex * cellHeight;
-
-                        ctx.strokeStyle = '#ff0000';
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(x, y, cellWidth, cellHeight);
-                    } else {
-                        // 일반 캐릭터: 4x2 배치 + 3x4 프레임
-                        const charCol = selectedCharIndex % 4;
-                        const charRow = Math.floor(selectedCharIndex / 4);
-
-                        const directionIndex = [2, 4, 6, 8].indexOf(selectedDirection);
-
-                        const x = (charCol * 3 + selectedPattern) * cellWidth;
-                        const y = (charRow * 4 + directionIndex) * cellHeight;
-
-                        ctx.strokeStyle = '#ff0000';
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(x, y, cellWidth, cellHeight);
-                    }
-                };
-
-                drawSelection();
-
-                charCanvas.style.cssText = `
-                border: 1px solid #ccc;
-                cursor: pointer;
-                image-rendering: pixelated;
-            `;
-
-                // 클릭 핸들러
-                charCanvas.addEventListener('click', (e) => {
-                    const rect = charCanvas.getBoundingClientRect();
-                    const clientX = e.clientX - rect.left;
-                    const clientY = e.clientY - rect.top;
-
-                    // 캔버스의 실제 크기와 표시 크기 비율
-                    const scaleX = canvasWidth / rect.width;
-                    const scaleY = canvasHeight / rect.height;
-
-                    // 캔버스 좌표로 변환
-                    const canvasX = clientX * scaleX;
-                    const canvasY = clientY * scaleY;
-
-                    // 그리드에서의 셀 위치
-                    let clickCol = Math.floor(canvasX / cellWidth);
-                    let clickRow = Math.floor(canvasY / cellHeight);
-
-                    // 범위 체크
-                    clickCol = Math.max(0, Math.min(clickCol, gridCols - 1));
-                    clickRow = Math.max(0, Math.min(clickRow, gridRows - 1));
-
-                    if (isBigName) {
-                        // $문자: 3x4 단일 캐릭터
-                        selectedCharIndex = 0;
-                        selectedPattern = clickCol;
-                        selectedDirection = [2, 4, 6, 8][clickRow];
-                    } else {
-                        // 일반 캐릭터: 4x2 캐릭터 배치 × 3x4 프레임
-                        const charCol = Math.floor(clickCol / 3);
-                        const charRow = Math.floor(clickRow / 4);
-
-                        selectedCharIndex = charRow * 4 + charCol;
-                        selectedPattern = clickCol % 3;
-                        selectedDirection = [2, 4, 6, 8][clickRow % 4];
-                    }
-
-                    updateCharGrid();
-                });
-
-                charGridContainer.appendChild(charCanvas);
-            };
-
-            img.onerror = () => {
-                charGridContainer.innerHTML = '<div style="color: #999;">이미지를 불러올 수 없습니다.</div>';
-            };
-
-            img.src = `project/img/characters/${selectedCharName}.png`;
-        };
-
-        updateCharGrid();
-        characterPanel.appendChild(charGridContainer);
-        contentArea.appendChild(characterPanel);
-
-        // Tileset 패널
-        const tilesetPanel = document.createElement('div');
-        tilesetPanel.style.cssText = `
-        display: ${currentTab === 'tileset' ? 'flex' : 'none'};
-        flex: 1;
-        flex-direction: row;
-        overflow: hidden;
-    `;
-
-        // 왼쪽: B, C, D 리스트
-        const tileListContainer = document.createElement('div');
-        tileListContainer.style.cssText = `
-        width: 200px;
-        border-right: 1px solid #555;
-        overflow-y: auto;
-        background-color: #1a1a1a;
-    `;
-
-        let selectedTileLayer = 'B';
-        let selectedTileId = currentImage.type === 'tileset' ? (currentImage.tileId || 256) : 256;
-
-        // B, C, D 리스트 항목
-        ['B', 'C', 'D'].forEach(layer => {
-            const item = document.createElement('div');
-            item.textContent = `Layer ${layer}`;
-            item.style.cssText = `
-            padding: 10px 15px;
-            color: #fff;
-            cursor: pointer;
-            border-left: 3px solid transparent;
-            transition: background-color 0.2s;
-        `;
-
-            if (layer === selectedTileLayer) {
-                item.style.backgroundColor = '#3a3a3a';
-                item.style.borderLeftColor = '#4080ff';
-            }
-
-            item.addEventListener('mouseenter', () => {
-                if (layer !== selectedTileLayer) {
-                    item.style.backgroundColor = '#2a2a2a';
-                }
-            });
-
-            item.addEventListener('mouseleave', () => {
-                if (layer !== selectedTileLayer) {
-                    item.style.backgroundColor = 'transparent';
-                }
-            });
-
-            item.addEventListener('click', () => {
-                // 이전 선택 제거
-                tileListContainer.querySelectorAll('div').forEach(div => {
-                    div.style.backgroundColor = 'transparent';
-                    div.style.borderLeftColor = 'transparent';
-                });
-
-                // 새로 선택
-                item.style.backgroundColor = '#3a3a3a';
-                item.style.borderLeftColor = '#4080ff';
-                selectedTileLayer = layer;
-
-                // 그리드 업데이트
-                updateTileGrid();
-            });
-
-            tileListContainer.appendChild(item);
-        });
-
-        tilesetPanel.appendChild(tileListContainer);
-
-        // 오른쪽: 타일 그리드
-        const tileGridContainer = document.createElement('div');
-        tileGridContainer.style.cssText = `
-        flex: 1;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        justify-content: flex-start;
-        overflow: auto;
-        background-color: #1a1a1a;
-    `;
-
-        const updateTileGrid = () => {
-            tileGridContainer.innerHTML = '';
-
-            // 레이어별 타일 범위
-            const layerRanges = {
-                'B': { start: 256, end: 512 },
-                'C': { start: 512, end: 768 },
-                'D': { start: 768, end: 1024 }
-            };
-
-            const range = layerRanges[selectedTileLayer];
-            if (!range) return;
-
-            const tileCanvas = document.createElement('canvas');
-            const tileSelectionRect = document.createElement('div');
-
-            tileSelectionRect.style.cssText = `
-            position: absolute;
-            border: 3px solid #4080ff;
-            box-sizing: border-box;
-            pointer-events: none;
-        `;
-
-            // 타일 이미지 로드
-            const sampleTile = main.mapManager.loader.getNormalTile(range.start);
-            if (!sampleTile || !sampleTile.img) {
-                tileGridContainer.innerHTML = '<div style="color: #999;">타일을 불러올 수 없습니다.</div>';
-                return;
-            }
-
-            const tilesetImg = sampleTile.img;
-            const tileWidth = 48;
-            const tileHeight = 48;
-            const tilesPerRow = 16;
-            const tilesInRange = range.end - range.start;
-            const rowsInRange = Math.ceil(tilesInRange / tilesPerRow);
-
-            tileCanvas.width = tilesetImg.width;
-            tileCanvas.height = tilesetImg.height;
-            const ctx = tileCanvas.getContext('2d');
-            ctx.drawImage(tilesetImg, 0, 0);
-
-            tileCanvas.style.cssText = `
-            border: 1px solid #555;
-            max-width: 100%;
-            max-height: 100%;
-            image-rendering: pixelated;
-        `;
-
-            // 선택 박스 위치 업데이트
-            const updateTileSelection = () => {
-                const canvasRect = tileCanvas.getBoundingClientRect();
-                const scaleX = canvasRect.width / tilesetImg.width;
-                const scaleY = canvasRect.height / tilesetImg.height;
-
-                const relativeId = selectedTileId - range.start;
-                const col = relativeId % tilesPerRow;
-                const row = Math.floor(relativeId / tilesPerRow);
-
-                const pixelX = col * tileWidth;
-                const pixelY = row * tileHeight;
-
-                tileSelectionRect.style.left = (pixelX * scaleX) + 'px';
-                tileSelectionRect.style.top = (pixelY * scaleY) + 'px';
-                tileSelectionRect.style.width = (tileWidth * scaleX) + 'px';
-                tileSelectionRect.style.height = (tileHeight * scaleY) + 'px';
-            };
-
-            // 클릭 이벤트
-            tileCanvas.addEventListener('click', (e) => {
-                const rect = tileCanvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-
-                const scaleX = rect.width / tilesetImg.width;
-                const scaleY = rect.height / tilesetImg.height;
-
-                const col = Math.floor(x / (tileWidth * scaleX));
-                const row = Math.floor(y / (tileHeight * scaleY));
-
-                const relativeId = row * tilesPerRow + col;
-                if (relativeId < tilesInRange) {
-                    selectedTileId = range.start + relativeId;
-                    updateTileSelection();
-                }
-            });
-
-            const tileWrapper = document.createElement('div');
-            tileWrapper.style.cssText = `
-            position: relative;
-            display: inline-block;
-        `;
-
-            tileWrapper.appendChild(tileCanvas);
-            tileWrapper.appendChild(tileSelectionRect);
-            tileGridContainer.appendChild(tileWrapper);
-
-            // 초기 선택 박스 위치 설정
-            setTimeout(updateTileSelection, 0);
-        };
-
-        updateTileGrid();
-        contentArea.appendChild(tilesetPanel);
-
-        // 탭 버튼 이벤트
-        charTab.addEventListener('click', () => {
-            currentTab = 'character';
-            characterPanel.style.display = 'flex';
-            tilesetPanel.style.display = 'none';
-            charTab.style.backgroundColor = '#4a4a4a';
-            tileTab.style.backgroundColor = '#3a3a3a';
-        });
-
-        tileTab.addEventListener('click', () => {
-            currentTab = 'tileset';
-            characterPanel.style.display = 'none';
-            tilesetPanel.style.display = 'flex';
-            tileTab.style.backgroundColor = '#4a4a4a';
-            charTab.style.backgroundColor = '#3a3a3a';
-        });
-
-        if (currentTab === 'character') {
-            charTab.style.backgroundColor = '#4a4a4a';
-        } else {
-            tileTab.style.backgroundColor = '#4a4a4a';
-        }
-
-        modalContainer.appendChild(contentArea);
-
-        // 하단 버튼
-        const buttonArea = document.createElement('div');
-        buttonArea.style.cssText = `
-        padding: 15px 20px;
-        border-top: 1px solid #555;
-        display: flex;
-        gap: 10px;
-        justify-content: flex-end;
-    `;
-
-        // 확인 버튼
-        const confirmBtn = document.createElement('button');
-        confirmBtn.textContent = '확인';
-        confirmBtn.style.cssText = `
-        padding: 8px 20px;
-        background-color: #4080ff;
-        border: none;
-        border-radius: 4px;
-        color: #fff;
-        cursor: pointer;
-        font-weight: bold;
-    `;
-        confirmBtn.addEventListener('click', () => {
-            if (currentTab === 'character') {
-                onSelect({
-                    type: 'character',
-                    name: selectedCharName,
-                    index: selectedCharIndex,
-                    pattern: selectedPattern,
-                    direction: selectedDirection,
-                    tileId: 0
-                });
-            } else {
-                onSelect({
-                    type: 'tileset',
-                    name: '',
-                    index: 0,
-                    pattern: 0,
-                    direction: 2,
-                    tileId: selectedTileId
-                });
-            }
-            document.body.removeChild(overlay);
-        });
-        buttonArea.appendChild(confirmBtn);
-
-        // 취소 버튼
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = '취소';
-        cancelBtn.style.cssText = `
-        padding: 8px 20px;
-        background-color: #555;
-        border: none;
-        border-radius: 4px;
-        color: #fff;
-        cursor: pointer;
-    `;
-        cancelBtn.addEventListener('click', () => {
-            document.body.removeChild(overlay);
-        });
-        buttonArea.appendChild(cancelBtn);
-
-        modalContainer.appendChild(buttonArea);
-
-        // ESC 키로 닫기
-        const escListener = (e) => {
-            if (e.key === 'Escape') {
-                document.body.removeChild(overlay);
-                document.removeEventListener('keydown', escListener);
-            }
-        };
-        document.addEventListener('keydown', escListener);
-
-        overlay.appendChild(modalContainer);
-        document.body.appendChild(overlay);
-    }
 
 
     createMoveRouteEditor(cmd, index, page) {
@@ -2101,65 +1260,6 @@ class EventEditor {
     }
 }
 
-
-/**
- * FieldEditor 기본 클래스
- * 각 필드 타입별로 상속받아 구현
- */
-class FieldEditor {
-    constructor(obj = { label, change, valiable}) {
-        this.value = null;
-        this.label = obj.label;
-        this.change = obj.change;
-        this.valiable = true; // 활성화 여부
-        this.html = this.createHtml(obj); // constructor에서 즉시 생성
-        if(obj.valiable !== undefined){
-            this.toggleValiable(obj.valiable);
-        }
-    }
-
-    /**
-     * HTML 요소 생성 (반드시 구현)
-     */
-    createHtml() {
-        throw new Error('createHtml must be implemented');
-    }
-
-    toggleValiable(value){
-        this.valiable = value;
-        this.html.disabled = !this.valiable
-        this.html.style.opacity = this.valiable ? '1' : '0.4';
-    }
-}
-
-/**
- * 숫자 입력 필드
- */
-class NumberFieldEditor extends FieldEditor {
-    constructor(obj) {
-        super(obj);
-        this.value = 0;
-    }
-    createHtml(obj) {
-        const input = document.createElement('input');
-        input.type = 'number';
-        if (obj.min !== undefined) input.min = obj.min;
-        if (obj.max !== undefined) input.max = obj.max;
-        input.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
-        input.value = 0
-
-        input.addEventListener('input', (e) => {
-            this.value = parseInt(e.target.value) || 0;
-        });
-        return input;
-    }
-
-    onChange(id){
-        this.value = id;
-        this.change(this.value);
-    }
-}
-
 /**
  * 텍스트 입력 필드
  */
@@ -2179,149 +1279,6 @@ class TextFieldEditor extends FieldEditor {
     }
 }
 
-/**
- * 선택 필드 (드롭다운)
- */
-class SelectFieldEditor extends FieldEditor {
-
-    createHtml(obj) {
-        this.options = obj.options;
-        const select = document.createElement('select');
-        select.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
-        this.options.forEach((opt, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = opt;
-            select.appendChild(option);
-        });
-        select.addEventListener('change', (e) => {
-            this.value = parseInt(e.target.value);
-            this.onChange(this.value);
-        });
-        return select;
-    }
-    onChange(id){
-        this.value = id;
-        this.change(this.value);
-    }
-}
-
-class SelectAni extends SelectFieldEditor {
-    getOptions() {
-        return [
-            ...(main.animationsData.map((e, i) => i > 0 ? {
-                value: i,
-                label: e.name
-            } : null).filter(Boolean))
-        ]
-    }
-}
-class SelectSpeed extends SelectFieldEditor {
-    getOptions() {
-        return [
-            { value: 1, label: '1: 가장 느림' },
-            { value: 2, label: '2: 느림' },
-            { value: 3, label: '3: 보통' },
-            { value: 4, label: '4: 빠름' },
-            { value: 5, label: '5: 더 빠름' },
-            { value: 6, label: '6: 가장 빠름' }
-        ]
-    }
-}
-class SelectDirection extends SelectFieldEditor {
-    getOptions() {
-        return [
-            { value: 2, label: '아래' },
-            { value: 4, label: '왼쪽' },
-            { value: 6, label: '오른쪽' },
-            { value: 8, label: '위' }
-        ]
-    }
-}
-class SelectCharacter extends SelectFieldEditor {
-    getOptions() {
-        return [
-            { value: -1, label: '플레이어' },
-            { value: 0, label: '현재 이벤트' },
-            ...((em.map.events || []).map((e, i) => i > 0 ? {
-                value: i,
-                label: `${String(i).padStart(3, '0')}: ${e?.name || '(이름 없음)'}`
-            } : null).filter(Boolean))
-        ]
-    }
-}
-class SelectBalloon extends SelectFieldEditor {
-    getOptions() {
-        return [
-            { value: 1, label: '느낌표' },
-            { value: 2, label: '물음표' },
-            { value: 3, label: '음표' },
-            { value: 4, label: '하트' },
-            { value: 5, label: '분노' },
-            { value: 6, label: '땀' },
-            { value: 7, label: '뒤죽박죽' },
-            { value: 8, label: '침묵' },
-            { value: 9, label: '전구' },
-            { value: 10, label: 'Zzz' },
-            { value: 11, label: '사용자 정의 1' },
-            { value: 12, label: '사용자 정의 2' },
-            { value: 13, label: '사용자 정의 3' },
-            { value: 14, label: '사용자 정의 4' }
-        ]
-    }
-}
-
-/**
- * 체크박스 필드
- */
-class CheckboxFieldEditor extends FieldEditor {
-    constructor(obj) {
-        super(obj);
-        this.value = false;
-        this.labelText.textContent = obj.label;
-    }
-
-    createHtml() {
-        const container = document.createElement('label');
-        container.style.cssText = `
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: #fff;
-            font-size: 13px;
-            cursor: pointer;
-            user-select: none; /* 클릭할 때 텍스트가 드래그되는 것 방지 */
-        `;
-
-        
-        const labelText = document.createElement('span');
-        labelText.textContent = ''; // 여기에 내용 입력
-        
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.style.cssText = `width: 18px; height: 18px; cursor: pointer; margin: 0;`;
-        input.addEventListener('change', (e) => {
-            this.value = e.target.checked;
-            if (typeof this.onChange === 'function') {
-                this.onChange(this.value);
-            }
-        });
-
-        // [체크박스] [텍스트] 순서로 배치
-        container.appendChild(input);
-        container.appendChild(labelText);
-
-        this.checkbox = input;
-        this.labelText = labelText;
-        return container;
-    }
-
-    onChange(value){
-        this.value = value;
-        this.checkbox.checked = !!this.value;
-        this.change(this.value);
-    }
-}
 
 /**
  * 토글 버튼 필드
@@ -2344,63 +1301,6 @@ class ToggleFieldEditor extends FieldEditor {
     }
 }
 
-/**
- * 스위치 선택 필드
- */
-class SwitchFieldEditor extends FieldEditor {
-    constructor(obj) {
-        super(obj);
-        this.value = 1;
-    }
-
-    createHtml() {
-        const btn = document.createElement('button');
-        btn.className = 'ins-selector-btn';
-        btn.style.cssText = 'width: 100%; padding: 6px; font-size: 11px; text-align: left;';
-        btn.textContent = `[${this.value}] ${editor.getSwitchName(this.value)}`;
-        btn.onclick = () => {editor.showSwitchSelector(this.value, (newId) => this.onChange(newId));};
-        return btn;
-    }
-
-    onChange(id){
-        this.value = id || this.value;
-        const name = editor.getSwitchName(this.value);
-        this.html.textContent = `[${this.value}] ${name}`;
-        this.change(this.value);
-    }
-}
-
-/**
- * 변수 선택 필드
- */
-class VariableFieldEditor extends FieldEditor {
-    constructor(obj) {
-        super(obj);
-        this.value = 1;
-    }
-    createHtml() {
-        this.value = 1;
-        const btn = document.createElement('button');
-        btn.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; text-align: left; transition: background-color 0.2s;`;
-        btn.textContent = `[${this.value}] ${editor.getVariableName(this.value)}`;
-        btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#4a4a4a');
-        btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '#3a3a3a');
-        btn.onclick = () => {
-            editor.showVariableSelector(this.value || 1, (newId) => {
-                this.value = newId;
-                this.onChange();
-            });
-        };
-        return btn;
-    }
-
-    onChange(value){
-        if(value) this.value = value
-        const name = editor.getVariableName(this.value);
-        this.html.textContent = `[${this.value}] ${name}`;
-        this.change(this.value);
-    }
-}
 
 /**
  * 얼굴 이미지 선택 필드

@@ -9,8 +9,6 @@ class MapViewer {
         this.ctx = this.mapCanvas.getContext('2d');
         this.mapOverlayCtx = this.mapOverlay.getContext('2d');
         this.eventCtx = this.eventCanvas.getContext('2d');
-        this.tileset = null;
-        this.tilesets = null;
 
         this.events = [];
         this.mousePos = {x:0,y:0}
@@ -518,7 +516,7 @@ class MapViewer {
 
         let img = null
         if (info.tileId) {
-            const tile = main.mapManager.loader.getNormalTile(info.tileId)
+            const tile = editor.getNormalTile(info.tileId)
             ctx.drawImage(
                 tile.img,
                 tile.sx, tile.sy, TILE_SIZE, TILE_SIZE,
@@ -896,26 +894,11 @@ class MapLoader {
     }
 
 
-    getNormalTile(tileId) {
-        const s = TILE_SIZE;;
-        const sx = ((Math.floor(tileId / 128) % 2) * 8 + (tileId % 8)) * s;
-        const sy = (Math.floor((tileId % 256) / 8) % 16) * s;
-
-        let tileTypeIndex = 4
-        if (editor.isTileB(tileId)) { tileTypeIndex = 5 }
-        else if (editor.isTileC(tileId)) { tileTypeIndex = 6 }
-        else if (editor.isTileD(tileId)) { tileTypeIndex = 7 }
-        else if (editor.isTileE(tileId)) { tileTypeIndex = 8 }
-        const img = main.images.tilesets.get(this.tilesetData.tilesetNames[tileTypeIndex]);
-
-        return { img, sx, sy }
-    }
-
     drawNormal(ctx, tileId, x, y) {
         const dx = x * TILE_SIZE;
         const dy = y * TILE_SIZE;
 
-        const tile = this.getNormalTile(tileId)
+        const tile = editor.getNormalTile(tileId)
         if (!tile.img) {
             return
         }
