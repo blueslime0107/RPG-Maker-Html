@@ -3,6 +3,7 @@ class EventEditor {
     constructor() {
         this.event = null; // 현재 선택된 이벤트 보관
         this.page = null;
+        this.condition = null
         this.cmdList = null;
         this.currentPageIndex = 0; // 현재 페이지 인덱스 초기화
         this.editor = new EventCodeEditor(document.getElementById('ins-contents-list')); // EventEditor 인스턴스 (독립적으로 생성)
@@ -27,10 +28,149 @@ class EventEditor {
 
     init(){
         // 탭 버튼 클릭 리스너 등록
+        this.initInspector()
         const settingBtn = document.querySelector('[data-tab="setting"]');
         const commandsBtn = document.querySelector('[data-tab="commands"]');
         settingBtn.onclick = () => this.switchContentTab('setting');
         commandsBtn.onclick = () => this.switchContentTab('commands');
+    }
+
+    initInspector(){
+        // 스위치 컨테이너 초기화
+        const switchContainer = document.getElementById('ins-switch');
+        switchContainer.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 8px;
+        `;
+
+        switchContainer.appendChild((() => {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                color: #fff;
+                font-size: 13px;
+            `;
+            this.switch1Toggle = new CheckboxFieldEditor({
+                label: '스위치1',
+                change: (value) => {
+                    this.condition.switch1Valid = value;
+                    this.switch1Field.toggleValiable(value);
+                }
+            });
+            this.switch1Field = new SwitchFieldEditor({
+                change: (value) => { this.condition.switch1Id = value; },
+                valiable: false
+            });
+            container.appendChild(this.switch1Toggle.html);
+            container.appendChild(this.switch1Field.html);
+            return container;
+        })());
+        switchContainer.appendChild((() => {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                color: #fff;
+                font-size: 13px;
+            `;
+            this.switch2Toggle = new CheckboxFieldEditor({
+                label: '스위치2',
+                change: (value) => {
+                    this.condition.switch2Valid = value;
+                    this.switch2Field.toggleValiable(value);
+                }
+            });
+            this.switch2Field = new SwitchFieldEditor({
+                change: (value) => { this.condition.switch2Id = value; },
+                valiable: false
+            });
+            container.appendChild(this.switch2Toggle.html);
+            container.appendChild(this.switch2Field.html);
+            return container;
+        })());
+        switchContainer.appendChild((() => {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                color: #fff;
+                font-size: 13px;
+            `;
+            this.selfSwitchToggle = new CheckboxFieldEditor({
+                label: '셀프 스위치',
+                change: (value) => {
+                    this.condition.selfSwitchValid = value;
+                    this.selfSwitchField.toggleValiable(value);
+                }
+            });
+            this.selfSwitchField = new SelectFieldEditor({
+                options: ['A', 'B', 'C', 'D'],
+                valiable: false,
+                change: (value) => { this.condition.selfSwitchCh = this.selfSwitchField.options[value]; },
+            });
+            container.appendChild(this.selfSwitchToggle.html);
+            container.appendChild(this.selfSwitchField.html);
+            return container;
+        })());
+        switchContainer.appendChild((() => {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                color: #fff;
+                font-size: 13px;
+            `;
+            this.variableToggle = new CheckboxFieldEditor({
+                label: '변수',
+                change: (value) => {
+                    this.condition.variableValid = value;
+                    this.variableField.toggleValiable(value);
+                    this.varNumField.toggleValiable(value);
+                }
+            });
+            container.appendChild(this.variableToggle.html);
+
+            // 두 번째 행: variableField, ">=", varNumField
+            const row2 = document.createElement('div');
+            row2.style.cssText = `
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            `;
+
+            this.variableField = new VariableFieldEditor({
+                valiable: false,
+                change: (value) => { this.condition.variableId = value; }
+            });
+            this.variableField.html.style.flex = '1';
+            row2.appendChild(this.variableField.html);
+
+            const geLabel = document.createElement('span');
+            geLabel.textContent = '>=';
+            geLabel.style.cssText = `
+                color: #fff;
+                font-size: 13px;
+                flex-shrink: 0;
+            `;
+            row2.appendChild(geLabel);
+
+            this.varNumField = new NumberFieldEditor({
+                valiable: false,
+                change: (value) => { this.condition.variableValue = value; }
+            });
+            this.varNumField.html.style.flex = '1';
+            row2.appendChild(this.varNumField.html);
+
+            container.appendChild(row2);
+            return container;
+        })());
     }
     
     // 탭 전환 (페이지 설정 / 실행 내용)
@@ -57,7 +197,7 @@ class EventEditor {
         }
     }
 
-    // 2. 인스펙터에 데이터 로드
+    // 인스펙터에 데이터 로드
     showInspector(event) {
         this.event = event; // 현재 선택된 이벤트 보관
         this.currentPageIndex = 0; // 현재 페이지 인덱스 초기화
@@ -80,29 +220,19 @@ class EventEditor {
     // 페이지 데이터 로드
     loadPageToInspector(event, pageIndex) {
         this.page = event.pages[pageIndex];
+        this.condition = this.page.conditions
 
-        // 조건 정보
-        const conditions = this.page.conditions || {};
+        this.switch1Field.onChange(this.condition.switch1Id)
+        this.switch1Toggle.onChange(this.condition.switch1Valid)
+        this.switch2Field.onChange(this.condition.switch2Id)
+        this.switch2Toggle.onChange(this.condition.switch2Valid)
+        this.selfSwitchField.onChange(this.condition.selfSwitchCh)
+        this.selfSwitchToggle.onChange(this.condition.selfSwitchValid)
+        this.variableField.onChange(this.condition.variableId)
+        this.variableToggle.onChange(this.condition.variableValid)
+        this.varNumField.onChange(this.condition.variableValue)
 
-        // 스위치 컨테이너 초기화
-        const switchContainer = document.getElementById('ins-switch-container');
-        switchContainer.innerHTML = '';
-
-        // 스위치 1
-        this.switch1Field = new SwitchFieldEditor({
-            change: (value) => {conditions.switch1Id = value},
-            valiable: false
-        });
-        this.switch1Toggle = new CheckboxFieldEditor({
-            label: '스위치1',
-            change: (value) => {
-                conditions.switch1Valid = value
-                this.switch1Field.toggleValiable(value);
-            }
-        })
-        switchContainer.appendChild(this.switch1Toggle.html);
-        switchContainer.appendChild(this.switch1Field.html);
-
+        return
         // 스위치 2
         this.switch2Field = new SwitchFieldEditor({
             label: '스위치2',
@@ -635,13 +765,6 @@ class EventEditor {
         return name || `공통이벤트${eventId}`;
     }
 
-    // 변수 이름 가져오기
-    getVariableName(variableId) {
-        const systemData = main?.systemData || main?.mapManager?.loader?.systemData || {};
-        if (!systemData || !systemData.variables) return '';
-        const variableName = systemData.variables[variableId] || '';
-        return variableName || '';
-    }
 
     // 액터 이름 가져오기
     getActorName(actorId) {
@@ -1470,368 +1593,6 @@ class EventEditor {
         document.body.appendChild(overlay);
     }
 
-    // 변수 선택 모달
-    showVariableSelector(currentVariableId, onSelect) {
-        // 모달 오버레이
-        const overlay = document.createElement('div');
-        overlay.id = 'variable-selector-overlay';
-        overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.8);
-        z-index: 11000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-
-        // 모달 컨테이너
-        const modalContainer = document.createElement('div');
-        modalContainer.style.cssText = `
-        background-color: #3a3a3a;
-        border: 2px solid #0066cc;
-        border-radius: 6px;
-        width: 500px;
-        height: auto;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-    `;
-
-        // 제목
-        const title = document.createElement('div');
-        title.textContent = '변수 선택';
-        title.style.cssText = `
-        padding: 12px 16px;
-        background: linear-gradient(90deg, #0066cc 0%, #0052a3 100%);
-        border-bottom: 1px solid #004499;
-        color: white;
-        font-size: 16px;
-        font-weight: bold;
-        flex-shrink: 0;
-    `;
-        modalContainer.appendChild(title);
-
-        // 컨텐츠 영역
-        const contentArea = document.createElement('div');
-        contentArea.style.cssText = `
-        display: flex;
-        flex: 1;
-        overflow: hidden;
-        gap: 12px;
-        padding: 12px;
-        min-height: 0;
-    `;
-
-        // System.json에서 변수 데이터 로드
-        const systemData = main.systemData || {};
-        const variables = systemData.variables || [];
-
-        let selectedVariableId = currentVariableId || 1;
-        let currentRangeStart = 1;
-
-        // 좌측: 범위 선택 버튼
-        const rangeButtonContainer = document.createElement('div');
-        rangeButtonContainer.style.cssText = `
-        flex: 0 0 80px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        overflow-y: auto;
-    `;
-
-        const createRangeButtons = () => {
-            rangeButtonContainer.innerHTML = '';
-            for (let i = 1; i <= 500; i += 20) {
-                const endNum = Math.min(i + 19, 500);
-                const btn = document.createElement('button');
-                btn.textContent = String(endNum).padStart(4, '0');
-                btn.dataset.rangeStart = i;
-                btn.style.cssText = `
-                padding: 6px 8px;
-                background: #1a1a1a;
-                border: 1px solid #333;
-                border-radius: 2px;
-                color: #ddd;
-                cursor: pointer;
-                font-size: 11px;
-                transition: all 0.2s;
-            `;
-
-                if (selectedVariableId >= i && selectedVariableId < i + 20) {
-                    btn.style.backgroundColor = '#0066cc';
-                    btn.style.borderColor = '#0052a3';
-                    btn.style.color = 'white';
-                }
-
-                btn.addEventListener('click', () => {
-                    currentRangeStart = i;
-                    renderVariableList();
-                });
-
-                btn.addEventListener('mouseenter', () => {
-                    if (!(selectedVariableId >= i && selectedVariableId < i + 20)) {
-                        btn.style.backgroundColor = '#2a2a2a';
-                        btn.style.borderColor = '#555';
-                    }
-                });
-
-                btn.addEventListener('mouseleave', () => {
-                    if (!(selectedVariableId >= i && selectedVariableId < i + 20)) {
-                        btn.style.backgroundColor = '#1a1a1a';
-                        btn.style.borderColor = '#333';
-                    }
-                });
-
-                rangeButtonContainer.appendChild(btn);
-            }
-        };
-
-        // 중앙: 변수 목록
-        const listContainer = document.createElement('div');
-        listContainer.style.cssText = `
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-    `;
-
-        const rangeLabel = document.createElement('div');
-        rangeLabel.style.cssText = `
-        background: #2a2a2a;
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #aaa;
-        border: 1px solid #444;
-        border-radius: 2px;
-        margin-bottom: 8px;
-        text-align: center;
-    `;
-        listContainer.appendChild(rangeLabel);
-
-        const variableList = document.createElement('ul');
-        variableList.style.cssText = `
-        list-style: none;
-        margin: 0;
-        padding: 6px;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 2px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    `;
-        listContainer.appendChild(variableList);
-
-        // 변수 이름 수정 텍스트 박스
-        const renameContainer = document.createElement('div');
-        renameContainer.style.cssText = `
-        margin-top: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    `;
-
-        const renameInput = document.createElement('input');
-        renameInput.type = 'text';
-        renameInput.placeholder = '선택한 변수의 이름을 입력하세요';
-        renameInput.style.cssText = `
-        padding: 6px 8px;
-        background: #1a1a1a;
-        border: 1px solid #444;
-        border-radius: 2px;
-        color: #ddd;
-        font-size: 12px;
-        outline: none;
-    `;
-        renameInput.addEventListener('focus', () => {
-            renameInput.style.borderColor = '#0066cc';
-        });
-        renameInput.addEventListener('blur', () => {
-            renameInput.style.borderColor = '#444';
-            // 포커스를 벗어날 때 변경사항 저장 (렌더링은 하지 않음)
-            variables[selectedVariableId] = renameInput.value;
-        });
-        renameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                variables[selectedVariableId] = renameInput.value;
-                renderVariableList();
-            }
-        });
-        renameContainer.appendChild(renameInput);
-        listContainer.appendChild(renameContainer);
-
-        const renderVariableList = () => {
-            variableList.innerHTML = '';
-            const rangeEnd = Math.min(currentRangeStart + 19, 500);
-            rangeLabel.textContent = `[ ${String(currentRangeStart).padStart(4, '0')} - ${String(rangeEnd).padStart(4, '0')} ]`;
-
-            for (let i = currentRangeStart; i <= rangeEnd; i++) {
-                const li = document.createElement('li');
-                li.dataset.variableId = i;
-                li.style.cssText = `
-                padding: 6px 8px;
-                background: #1a1a1a;
-                border: 1px solid #333;
-                border-radius: 2px;
-                cursor: pointer;
-                font-size: 12px;
-                color: #ddd;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                transition: all 0.2s;
-            `;
-
-                const variableName = variables[i] || '';
-                const displayId = String(i).padStart(4, '0');
-                const displayText = variableName ? `${displayId} ${variableName}` : displayId;
-
-                li.textContent = displayText;
-
-                if (i === selectedVariableId) {
-                    li.style.backgroundColor = '#0066cc';
-                    li.style.borderColor = '#0052a3';
-                    li.style.color = 'white';
-                    li.style.fontWeight = 'bold';
-                }
-
-                li.addEventListener('mouseenter', () => {
-                    if (i !== selectedVariableId) {
-                        li.style.backgroundColor = '#2a2a2a';
-                        li.style.borderColor = '#555';
-                    }
-                });
-
-                li.addEventListener('mouseleave', () => {
-                    if (i !== selectedVariableId) {
-                        li.style.backgroundColor = '#1a1a1a';
-                        li.style.borderColor = '#333';
-                    }
-                });
-
-                li.addEventListener('click', () => {
-                    // 이전 선택의 변경사항 저장
-                    variables[selectedVariableId] = renameInput.value;
-
-                    selectedVariableId = i;
-
-                    // 텍스트 박스 업데이트
-                    renameInput.value = variables[selectedVariableId] || '';
-
-                    // UI 전체 갱신
-                    renderVariableList();
-
-                    // 범위 버튼 업데이트
-                    rangeButtonContainer.querySelectorAll('button').forEach(btn => {
-                        const rangeStart = parseInt(btn.dataset.rangeStart);
-                        if (selectedVariableId >= rangeStart && selectedVariableId < rangeStart + 20) {
-                            btn.style.backgroundColor = '#0066cc';
-                            btn.style.borderColor = '#0052a3';
-                            btn.style.color = 'white';
-                        } else {
-                            btn.style.backgroundColor = '#1a1a1a';
-                            btn.style.borderColor = '#333';
-                            btn.style.color = '#ddd';
-                        }
-                    });
-                });
-
-                variableList.appendChild(li);
-            }
-        };
-
-        createRangeButtons();
-        renderVariableList();
-
-        // 초기 선택된 변수의 이름 표시
-        renameInput.value = variables[selectedVariableId] || '';
-
-        contentArea.appendChild(rangeButtonContainer);
-        contentArea.appendChild(listContainer);
-        modalContainer.appendChild(contentArea);
-
-        // 버튼 영역
-        const buttonArea = document.createElement('div');
-        buttonArea.style.cssText = `
-        display: flex;
-        gap: 8px;
-        padding: 12px 16px;
-        background: #2a2a2a;
-        border-top: 1px solid #444;
-        flex-shrink: 0;
-        justify-content: flex-end;
-    `;
-
-        const okBtn = document.createElement('button');
-        okBtn.textContent = 'OK';
-        okBtn.style.cssText = `
-        padding: 6px 16px;
-        background: #0066cc;
-        color: white;
-        border-color: #0052a3;
-        border: 1px solid #0052a3;
-        border-radius: 2px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-        okBtn.addEventListener('click', () => {
-            // 모달 닫기 전 변경사항 저장
-            variables[selectedVariableId] = renameInput.value;
-            onSelect(selectedVariableId);
-            document.body.removeChild(overlay);
-        });
-        okBtn.addEventListener('mouseover', () => {
-            okBtn.style.background = '#0052a3';
-        });
-        okBtn.addEventListener('mouseout', () => {
-            okBtn.style.background = '#0066cc';
-        });
-        buttonArea.appendChild(okBtn);
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = '취소';
-        cancelBtn.style.cssText = `
-        padding: 6px 16px;
-        background: #3a3a3a;
-        color: #ddd;
-        border-color: #555;
-        border: 1px solid #555;
-        border-radius: 2px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-        cancelBtn.addEventListener('click', () => {
-            document.body.removeChild(overlay);
-        });
-        cancelBtn.addEventListener('mouseover', () => {
-            cancelBtn.style.background = '#4a4a4a';
-        });
-        cancelBtn.addEventListener('mouseout', () => {
-            cancelBtn.style.background = '#3a3a3a';
-        });
-        buttonArea.appendChild(cancelBtn);
-
-        modalContainer.appendChild(buttonArea);
-
-        // ESC 키로 닫기
-        const escListener = (e) => {
-            if (e.key === 'Escape') {
-                document.body.removeChild(overlay);
-                document.removeEventListener('keydown', escListener);
-            }
-        };
-        document.addEventListener('keydown', escListener);
-
-        overlay.appendChild(modalContainer);
-        document.body.appendChild(overlay);
-    }
 
     createMoveRouteEditor(cmd, index, page) {
         this.showMoveRouteEditor(cmd.parameters[0], cmd.parameters[1], (characterId, moveRoute) => {
@@ -2346,12 +2107,15 @@ class EventEditor {
  * 각 필드 타입별로 상속받아 구현
  */
 class FieldEditor {
-    constructor(field, cmdObj) {
-        this.field = field;
-        this.cmdObj = cmdObj;
+    constructor(obj = { label, change, valiable}) {
         this.value = null;
+        this.label = obj.label;
+        this.change = obj.change;
         this.valiable = true; // 활성화 여부
-        this._htmlElement = this.createHtml(); // constructor에서 즉시 생성
+        this.html = this.createHtml(obj); // constructor에서 즉시 생성
+        if(obj.valiable !== undefined){
+            this.toggleValiable(obj.valiable);
+        }
     }
 
     /**
@@ -2366,44 +2130,33 @@ class FieldEditor {
         this.html.disabled = !this.valiable
         this.html.style.opacity = this.valiable ? '1' : '0.4';
     }
-
-    /**
-     * HTML 요소 반환
-     */
-    get html() {
-        return this._htmlElement;
-    }
-
-    /**
-     * UI 업데이트
-     */
-    update() {
-        throw new Error('update must be implemented');
-    }
 }
 
 /**
  * 숫자 입력 필드
  */
 class NumberFieldEditor extends FieldEditor {
-    constructor(field, cmdObj) {
-        super(field, cmdObj);
+    constructor(obj) {
+        super(obj);
         this.value = 0;
     }
-    createHtml() {
+    createHtml(obj) {
         const input = document.createElement('input');
         input.type = 'number';
-        if (this.field.min !== undefined) input.min = this.field.min;
-        if (this.field.max !== undefined) input.max = this.field.max;
-        input.style.cssText = `width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 13px;`;
+        if (obj.min !== undefined) input.min = obj.min;
+        if (obj.max !== undefined) input.max = obj.max;
+        input.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
+        input.value = 0
+
         input.addEventListener('input', (e) => {
             this.value = parseInt(e.target.value) || 0;
         });
         return input;
     }
 
-    update() {
-        this.html.value = this.value ?? 0;
+    onChange(id){
+        this.value = id;
+        this.change(this.value);
     }
 }
 
@@ -2431,32 +2184,25 @@ class TextFieldEditor extends FieldEditor {
  */
 class SelectFieldEditor extends FieldEditor {
 
-    getOptions() {
-        return this.field.options || [];
-    }
-
-    createHtml() {
+    createHtml(obj) {
+        this.options = obj.options;
         const select = document.createElement('select');
-        select.style.cssText = `width: 100%; padding: 8px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 13px;`;
-        this.getOptions().forEach(opt => {
+        select.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
+        this.options.forEach((opt, index) => {
             const option = document.createElement('option');
-            option.value = opt.value;
-            option.textContent = opt.label;
+            option.value = index;
+            option.textContent = opt;
             select.appendChild(option);
         });
         select.addEventListener('change', (e) => {
             this.value = parseInt(e.target.value);
+            this.onChange(this.value);
         });
         return select;
     }
-
-    update() {
-        // this.value에 따라 선택된 값 설정
-        Array.from(this.html.options).forEach(option => {
-            if (option.value == this.value) {
-                option.selected = true;
-            }
-        });
+    onChange(id){
+        this.value = id;
+        this.change(this.value);
     }
 }
 
@@ -2529,29 +2275,51 @@ class SelectBalloon extends SelectFieldEditor {
  * 체크박스 필드
  */
 class CheckboxFieldEditor extends FieldEditor {
-    constructor({ label, change }) {
-        super();
+    constructor(obj) {
+        super(obj);
         this.value = false;
-        this.label = label;
-        this.change = change;
-        this.onChange(this.value);
+        this.labelText.textContent = obj.label;
     }
 
     createHtml() {
+        const container = document.createElement('label');
+        container.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none; /* 클릭할 때 텍스트가 드래그되는 것 방지 */
+        `;
+
+        
+        const labelText = document.createElement('span');
+        labelText.textContent = ''; // 여기에 내용 입력
+        
         const input = document.createElement('input');
         input.type = 'checkbox';
-        input.style.cssText = `width: 18px; height: 18px; cursor: pointer;`;
+        input.style.cssText = `width: 18px; height: 18px; cursor: pointer; margin: 0;`;
         input.addEventListener('change', (e) => {
             this.value = e.target.checked;
-            this.onChange(this.value);
+            if (typeof this.onChange === 'function') {
+                this.onChange(this.value);
+            }
         });
-        return input;
+
+        // [체크박스] [텍스트] 순서로 배치
+        container.appendChild(input);
+        container.appendChild(labelText);
+
+        this.checkbox = input;
+        this.labelText = labelText;
+        return container;
     }
 
-    onChange(id){
-        this.value = id;
-        this.html.checked = !!this.value;
-        this.change(id);
+    onChange(value){
+        this.value = value;
+        this.checkbox.checked = !!this.value;
+        this.change(this.value);
     }
 }
 
@@ -2580,14 +2348,9 @@ class ToggleFieldEditor extends FieldEditor {
  * 스위치 선택 필드
  */
 class SwitchFieldEditor extends FieldEditor {
-    constructor({ label, change, valiable }) {
-        super();
-        console.log("??",valiable)
+    constructor(obj) {
+        super(obj);
         this.value = 1;
-        this.label = label;
-        this.change = change;
-        if(valiable) this.toggleValiable(valiable);
-        this.onChange(this.value);
     }
 
     createHtml() {
@@ -2611,28 +2374,31 @@ class SwitchFieldEditor extends FieldEditor {
  * 변수 선택 필드
  */
 class VariableFieldEditor extends FieldEditor {
-    constructor(field, cmdObj) {
-        super(field, cmdObj);
-        this.value = 1
+    constructor(obj) {
+        super(obj);
+        this.value = 1;
     }
     createHtml() {
+        this.value = 1;
         const btn = document.createElement('button');
-        btn.style.cssText = `width: 100%; padding: 10px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer; font-size: 13px; text-align: left; transition: background-color 0.2s;`;
+        btn.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; text-align: left; transition: background-color 0.2s;`;
+        btn.textContent = `[${this.value}] ${editor.getVariableName(this.value)}`;
         btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#4a4a4a');
         btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '#3a3a3a');
         btn.onclick = () => {
-            em.showVariableSelector(this.value || 1, (newId) => {
+            editor.showVariableSelector(this.value || 1, (newId) => {
                 this.value = newId;
-                this.update();
+                this.onChange();
             });
         };
         return btn;
     }
 
-    update() {
-        const id = this.value ?? 1;
-        const name = editor.getVariableName(id);
-        this.html.textContent = `#${String(id).padStart(4, '0')} ${name}`;
+    onChange(value){
+        if(value) this.value = value
+        const name = editor.getVariableName(this.value);
+        this.html.textContent = `[${this.value}] ${name}`;
+        this.change(this.value);
     }
 }
 
@@ -2708,50 +2474,5 @@ class MessageTextFieldEditor extends FieldEditor {
 
     update() {
         this.html.value = this.value ?? '';
-    }
-}
-
-/**
- * 선택지 목록 필드
- */
-class ChoiceListFieldEditor extends FieldEditor {
-    constructor(field, cmdObj) {
-        super(field, cmdObj);
-        this.inputs = [];
-    }
-
-    createHtml() {
-        const container = document.createElement('div');
-        container.style.cssText = 'display: flex; flex-direction: column; gap: 8px;';
-
-        for (let i = 0; i < (this.field.maxChoices || 6); i++) {
-            const row = document.createElement('div');
-            row.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-
-            const numLabel = document.createElement('label');
-            numLabel.textContent = `#${i + 1}:`;
-            numLabel.style.cssText = 'width: 30px; color: #999; font-size: 11px;';
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.style.cssText = `flex: 1; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 12px;`;
-            input.addEventListener('input', () => {
-                this.value = this.inputs.map(inp => inp.value).filter(v => v !== '');
-            });
-
-            this.inputs.push(input);
-            row.appendChild(numLabel);
-            row.appendChild(input);
-            container.appendChild(row);
-        }
-
-        return container;
-    }
-
-    update() {
-        const choices = Array.isArray(this.value) ? this.value : [];
-        this.inputs.forEach((input, i) => {
-            input.value = choices[i] || '';
-        });
     }
 }

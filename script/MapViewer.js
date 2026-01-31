@@ -130,7 +130,6 @@ class MapViewer {
                     color: '#ff6666'
                 }
                 ],() => {
-                    console.log("삭제")
                     this.selectTilePos = null;
                     this.updateMapOverlay(this.x,this.y)
                 })
