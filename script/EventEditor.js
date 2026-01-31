@@ -84,65 +84,33 @@ class EventEditor {
         // 조건 정보
         const conditions = this.page.conditions || {};
 
-        // 스위치 1
-        const switch1Check = document.getElementById('ins-switch1-check');
-        switch1Check.checked = conditions.switch1Valid;
-        const switch1Selector = document.getElementById('ins-switch1-selector');
-        
-        // 스위치 1 이름 표시
-        const switch1Name = document.getElementById('ins-switch1-name');
-        const updateSwitch1Name = () => {
-            const id = conditions.switch1Id || 0;
-            const switchName = this.getSwitchName(id);
-            if (id > 0) {
-                switch1Selector.textContent = `[${id}] ${switchName}`;
-            } else {
-                switch1Selector.textContent = '선택';
-            }
-            switch1Name.textContent = '';
-        };
-        updateSwitch1Name();
+        // 스위치 컨테이너 초기화
+        const switchContainer = document.getElementById('ins-switch-container');
+        switchContainer.innerHTML = '';
 
-        // 스위치 1 선택 버튼
-        if (switch1Selector) {
-            switch1Selector.onclick = () => {
-                const currentId = conditions.switch1Id || 1;
-                this.showSwitchSelector(currentId, (switchId) => {
-                    conditions.switch1Id = switchId;
-                    updateSwitch1Name();
-                });
-            };
-        }
+        // 스위치 1
+        this.switch1Field = new SwitchFieldEditor({
+            change: (value) => {conditions.switch1Id = value},
+            valiable: false
+        });
+        this.switch1Toggle = new CheckboxFieldEditor({
+            label: '스위치1',
+            change: (value) => {
+                conditions.switch1Valid = value
+                this.switch1Field.toggleValiable(value);
+            }
+        })
+        switchContainer.appendChild(this.switch1Toggle.html);
+        switchContainer.appendChild(this.switch1Field.html);
 
         // 스위치 2
-        const switch2Check = document.getElementById('ins-switch2-check');
-        const switch2Name = document.getElementById('ins-switch2-name');
-        const switch2Selector = document.getElementById('ins-switch2-selector');
-        switch2Check.checked = conditions.switch2Valid;
-
-        // 스위치 2 이름 표시
-        const updateSwitch2Name = () => {
-            const id = conditions.switch2Id || 0;
-            const switchName = this.getSwitchName(id);
-            if (id > 0) {
-                switch2Selector.textContent = `[${id}] ${switchName}`;
-            } else {
-                switch2Selector.textContent = '선택';
+        this.switch2Field = new SwitchFieldEditor({
+            label: '스위치2',
+            change: (value) => {
+                conditions.switch2Id = value
             }
-            switch2Name.textContent = '';
-        };
-        updateSwitch2Name();
-
-        // 스위치 2 선택 버튼
-        if (switch2Selector) {
-            switch2Selector.onclick = () => {
-                const currentId = conditions.switch2Id || 1;
-                this.showSwitchSelector(currentId, (switchId) => {
-                    conditions.switch2Id = switchId;
-                    updateSwitch2Name();
-                });
-            };
-        }
+        });
+        switchContainer.appendChild(this.switch2Field.html);
 
         // 셀프 스위치
         const selfSwitchCheck = document.getElementById('ins-self-switch-check');
@@ -189,16 +157,8 @@ class EventEditor {
 
         // 체크박스 변경 이벤트 리스너
         const updateConditionStates = () => {
-            const switch1Checked = document.getElementById('ins-switch1-check').checked;
-            const switch2Checked = document.getElementById('ins-switch2-check').checked;
             const selfSwitchChecked = document.getElementById('ins-self-switch-check').checked;
             const variableChecked = document.getElementById('ins-variable-check').checked;
-
-            document.getElementById('ins-switch1-selector').disabled = !switch1Checked;
-            document.getElementById('ins-switch1-selector').style.opacity = switch1Checked ? '1' : '0.4';
-
-            document.getElementById('ins-switch2-selector').disabled = !switch2Checked;
-            document.getElementById('ins-switch2-selector').style.opacity = switch2Checked ? '1' : '0.4';
 
             document.getElementById('ins-self-switch').disabled = !selfSwitchChecked;
             document.getElementById('ins-self-switch').style.opacity = selfSwitchChecked ? '1' : '0.4';
@@ -212,8 +172,6 @@ class EventEditor {
         // 초기 상태 설정
         updateConditionStates();
 
-        switch1Check.addEventListener('change', updateConditionStates);
-        switch2Check.addEventListener('change', updateConditionStates);
         selfSwitchCheck.addEventListener('change', updateConditionStates);
         variableCheck.addEventListener('change', updateConditionStates);
 
@@ -675,14 +633,6 @@ class EventEditor {
         const event = main.commonEventsData[eventId];
         const name = event.name || '';
         return name || `공통이벤트${eventId}`;
-    }
-
-    // 스위치 이름 가져오기
-    getSwitchName(switchId) {
-        const systemData = main?.systemData || main?.mapManager?.loader?.systemData || {};
-        if (!systemData || !systemData.switches) return '';
-        const switchName = systemData.switches[switchId] || '';
-        return switchName || '';
     }
 
     // 변수 이름 가져오기
@@ -1510,373 +1460,6 @@ class EventEditor {
         // ESC 키로 닫기
         const escListener = (e) => {
             if (e.key === 'Escape') {
-                document.body.removeChild(overlay);
-                document.removeEventListener('keydown', escListener);
-            }
-        };
-        document.addEventListener('keydown', escListener);
-
-        overlay.appendChild(modalContainer);
-        document.body.appendChild(overlay);
-    }
-
-    // 스위치 선택 모달
-    showSwitchSelector(currentSwitchId, onSelect) {
-        // 모달 오버레이
-        const overlay = document.createElement('div');
-        overlay.id = 'switch-selector-overlay';
-        overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.8);
-        z-index: 11000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-
-        // 모달 컨테이너
-        const modalContainer = document.createElement('div');
-        modalContainer.style.cssText = `
-        background-color: #3a3a3a;
-        border: 2px solid #0066cc;
-        border-radius: 6px;
-        width: 500px;
-        height: auto;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-    `;
-
-        // 제목
-        const title = document.createElement('div');
-        title.textContent = '스위치 선택';
-        title.style.cssText = `
-        padding: 12px 16px;
-        background: linear-gradient(90deg, #0066cc 0%, #0052a3 100%);
-        border-bottom: 1px solid #004499;
-        color: white;
-        font-size: 16px;
-        font-weight: bold;
-        flex-shrink: 0;
-    `;
-        modalContainer.appendChild(title);
-
-        // System.json에서 스위치 데이터 로드
-        const systemData = main.systemData || {};
-        const switches = systemData.switches || [];
-
-        let selectedSwitchId = currentSwitchId || 1;
-        let currentRangeStart = 1;
-
-        // 컨텐츠 영역
-        const contentArea = document.createElement('div');
-        contentArea.style.cssText = `
-        display: flex;
-        flex: 1;
-        overflow: hidden;
-        gap: 12px;
-        padding: 12px;
-        min-height: 0;
-    `;
-
-        // 좌측: 범위 선택 버튼
-        const rangeButtonContainer = document.createElement('div');
-        rangeButtonContainer.style.cssText = `
-        flex: 0 0 80px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        overflow-y: auto;
-    `;
-
-        const createRangeButtons = () => {
-            rangeButtonContainer.innerHTML = '';
-            for (let i = 1; i <= 500; i += 20) {
-                const endNum = Math.min(i + 19, 500);
-                const btn = document.createElement('button');
-                btn.textContent = String(endNum).padStart(4, '0');
-                btn.dataset.rangeStart = i;
-                btn.style.cssText = `
-                padding: 6px 8px;
-                background: #1a1a1a;
-                border: 1px solid #333;
-                border-radius: 2px;
-                color: #ddd;
-                cursor: pointer;
-                font-size: 11px;
-                transition: all 0.2s;
-            `;
-
-                if (selectedSwitchId >= i && selectedSwitchId < i + 20) {
-                    btn.style.backgroundColor = '#0066cc';
-                    btn.style.borderColor = '#0052a3';
-                    btn.style.color = 'white';
-                }
-
-                btn.addEventListener('click', () => {
-                    currentRangeStart = i;
-                    renderSwitchList();
-                });
-
-                btn.addEventListener('mouseenter', () => {
-                    if (!(selectedSwitchId >= i && selectedSwitchId < i + 20)) {
-                        btn.style.backgroundColor = '#2a2a2a';
-                        btn.style.borderColor = '#555';
-                    }
-                });
-
-                btn.addEventListener('mouseleave', () => {
-                    if (!(selectedSwitchId >= i && selectedSwitchId < i + 20)) {
-                        btn.style.backgroundColor = '#1a1a1a';
-                        btn.style.borderColor = '#333';
-                    }
-                });
-
-                rangeButtonContainer.appendChild(btn);
-            }
-        };
-
-        // 중앙: 스위치 목록
-        const listContainer = document.createElement('div');
-        listContainer.style.cssText = `
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-    `;
-
-        const rangeLabel = document.createElement('div');
-        rangeLabel.style.cssText = `
-        background: #2a2a2a;
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #aaa;
-        border: 1px solid #444;
-        border-radius: 2px;
-        margin-bottom: 8px;
-        text-align: center;
-    `;
-        listContainer.appendChild(rangeLabel);
-
-        const switchList = document.createElement('ul');
-        switchList.style.cssText = `
-        list-style: none;
-        margin: 0;
-        padding: 6px;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 2px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    `;
-        listContainer.appendChild(switchList);
-
-        // 스위치 이름 수정 텍스트 박스
-        const renameContainer = document.createElement('div');
-        renameContainer.style.cssText = `
-        margin-top: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    `;
-
-        const renameInput = document.createElement('input');
-        renameInput.type = 'text';
-        renameInput.placeholder = '선택한 스위치의 이름을 입력하세요';
-        renameInput.style.cssText = `
-        padding: 6px 8px;
-        background: #1a1a1a;
-        border: 1px solid #444;
-        border-radius: 2px;
-        color: #ddd;
-        font-size: 12px;
-        outline: none;
-    `;
-        renameInput.addEventListener('focus', () => {
-            renameInput.style.borderColor = '#0066cc';
-        });
-        renameInput.addEventListener('blur', () => {
-            renameInput.style.borderColor = '#444';
-            // 포커스를 벗어날 때 변경사항 저장 (렌더링은 하지 않음)
-            switches[selectedSwitchId] = renameInput.value;
-        });
-        renameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                switches[selectedSwitchId] = renameInput.value;
-                renderSwitchList();
-            }
-        });
-        renameContainer.appendChild(renameInput);
-        listContainer.appendChild(renameContainer);
-
-        const renderSwitchList = () => {
-            switchList.innerHTML = '';
-            const rangeEnd = Math.min(currentRangeStart + 19, 500);
-            rangeLabel.textContent = `[ ${String(currentRangeStart).padStart(4, '0')} - ${String(rangeEnd).padStart(4, '0')} ]`;
-
-            for (let i = currentRangeStart; i <= rangeEnd; i++) {
-                const li = document.createElement('li');
-                li.dataset.switchId = i;
-                li.style.cssText = `
-                padding: 6px 8px;
-                background: #1a1a1a;
-                border: 1px solid #333;
-                border-radius: 2px;
-                cursor: pointer;
-                font-size: 12px;
-                color: #ddd;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                transition: all 0.2s;
-            `;
-
-                const switchName = switches[i] || '';
-                const displayId = String(i).padStart(4, '0');
-                const displayText = switchName ? `${displayId} ${switchName}` : displayId;
-
-                li.textContent = displayText;
-
-                if (i === selectedSwitchId) {
-                    li.style.backgroundColor = '#0066cc';
-                    li.style.borderColor = '#0052a3';
-                    li.style.color = 'white';
-                    li.style.fontWeight = 'bold';
-                }
-
-                li.addEventListener('mouseenter', () => {
-                    if (i !== selectedSwitchId) {
-                        li.style.backgroundColor = '#2a2a2a';
-                        li.style.borderColor = '#555';
-                    }
-                });
-
-                li.addEventListener('mouseleave', () => {
-                    if (i !== selectedSwitchId) {
-                        li.style.backgroundColor = '#1a1a1a';
-                        li.style.borderColor = '#333';
-                    }
-                });
-
-                li.addEventListener('click', () => {
-                    // 이전 선택의 변경사항 저장
-                    switches[selectedSwitchId] = renameInput.value;
-
-                    selectedSwitchId = i;
-
-                    // 텍스트 박스 업데이트
-                    renameInput.value = switches[selectedSwitchId] || '';
-
-                    // UI 전체 갱신
-                    renderSwitchList();
-
-                    // 범위 버튼 업데이트
-                    rangeButtonContainer.querySelectorAll('button').forEach(btn => {
-                        const rangeStart = parseInt(btn.dataset.rangeStart);
-                        if (selectedSwitchId >= rangeStart && selectedSwitchId < rangeStart + 20) {
-                            btn.style.backgroundColor = '#0066cc';
-                            btn.style.borderColor = '#0052a3';
-                            btn.style.color = 'white';
-                        } else {
-                            btn.style.backgroundColor = '#1a1a1a';
-                            btn.style.borderColor = '#333';
-                            btn.style.color = '#ddd';
-                        }
-                    });
-                });
-
-                switchList.appendChild(li);
-            }
-        };
-
-        createRangeButtons();
-        renderSwitchList();
-
-        // 초기 선택된 스위치의 이름 표시
-        renameInput.value = switches[selectedSwitchId] || '';
-
-        contentArea.appendChild(rangeButtonContainer);
-        contentArea.appendChild(listContainer);
-        modalContainer.appendChild(contentArea);
-
-        // 버튼 영역
-        const buttonArea = document.createElement('div');
-        buttonArea.style.cssText = `
-        display: flex;
-        gap: 8px;
-        padding: 12px 16px;
-        background: #2a2a2a;
-        border-top: 1px solid #444;
-        flex-shrink: 0;
-        justify-content: flex-end;
-    `;
-
-        const okBtn = document.createElement('button');
-        okBtn.textContent = 'OK';
-        okBtn.style.cssText = `
-        padding: 6px 16px;
-        background: #0066cc;
-        color: white;
-        border-color: #0052a3;
-        border: 1px solid #0052a3;
-        border-radius: 2px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-        okBtn.addEventListener('click', () => {
-            // 모달 닫기 전 변경사항 저장
-            switches[selectedSwitchId] = renameInput.value;
-            onSelect(selectedSwitchId);
-            document.body.removeChild(overlay);
-        });
-        okBtn.addEventListener('mouseover', () => {
-            okBtn.style.background = '#0052a3';
-        });
-        okBtn.addEventListener('mouseout', () => {
-            okBtn.style.background = '#0066cc';
-        });
-        buttonArea.appendChild(okBtn);
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = '취소';
-        cancelBtn.style.cssText = `
-        padding: 6px 16px;
-        background: #3a3a3a;
-        color: #ddd;
-        border-color: #555;
-        border: 1px solid #555;
-        border-radius: 2px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-    `;
-        cancelBtn.addEventListener('click', () => {
-            // 취소 시에도 변경사항 저장
-            switches[selectedSwitchId] = renameInput.value;
-            document.body.removeChild(overlay);
-        });
-        cancelBtn.addEventListener('mouseover', () => {
-            cancelBtn.style.background = '#4a4a4a';
-        });
-        cancelBtn.addEventListener('mouseout', () => {
-            cancelBtn.style.background = '#3a3a3a';
-        });
-        buttonArea.appendChild(cancelBtn);
-
-        modalContainer.appendChild(buttonArea);
-
-        // ESC 키로 닫기
-        const escListener = (e) => {
-            if (e.key === 'Escape') {
-                // ESC로 닫을 때도 변경사항 저장
-                switches[selectedSwitchId] = renameInput.value;
                 document.body.removeChild(overlay);
                 document.removeEventListener('keydown', escListener);
             }
@@ -2767,6 +2350,7 @@ class FieldEditor {
         this.field = field;
         this.cmdObj = cmdObj;
         this.value = null;
+        this.valiable = true; // 활성화 여부
         this._htmlElement = this.createHtml(); // constructor에서 즉시 생성
     }
 
@@ -2775,6 +2359,12 @@ class FieldEditor {
      */
     createHtml() {
         throw new Error('createHtml must be implemented');
+    }
+
+    toggleValiable(value){
+        this.valiable = value;
+        this.html.disabled = !this.valiable
+        this.html.style.opacity = this.valiable ? '1' : '0.4';
     }
 
     /**
@@ -2939,18 +2529,29 @@ class SelectBalloon extends SelectFieldEditor {
  * 체크박스 필드
  */
 class CheckboxFieldEditor extends FieldEditor {
+    constructor({ label, change }) {
+        super();
+        this.value = false;
+        this.label = label;
+        this.change = change;
+        this.onChange(this.value);
+    }
+
     createHtml() {
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.style.cssText = `width: 18px; height: 18px; cursor: pointer;`;
         input.addEventListener('change', (e) => {
             this.value = e.target.checked;
+            this.onChange(this.value);
         });
         return input;
     }
 
-    update() {
+    onChange(id){
+        this.value = id;
         this.html.checked = !!this.value;
+        this.change(id);
     }
 }
 
@@ -2979,24 +2580,30 @@ class ToggleFieldEditor extends FieldEditor {
  * 스위치 선택 필드
  */
 class SwitchFieldEditor extends FieldEditor {
+    constructor({ label, change, valiable }) {
+        super();
+        console.log("??",valiable)
+        this.value = 1;
+        this.label = label;
+        this.change = change;
+        if(valiable) this.toggleValiable(valiable);
+        this.onChange(this.value);
+    }
+
     createHtml() {
         const btn = document.createElement('button');
-        btn.style.cssText = `width: 100%; padding: 10px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer; font-size: 13px; text-align: left; transition: background-color 0.2s;`;
-        btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#4a4a4a');
-        btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '#3a3a3a');
-        btn.onclick = () => {
-            em.showSwitchSelector(this.value || 1, (newId) => {
-                this.value = newId;
-                this.update();
-            });
-        };
+        btn.className = 'ins-selector-btn';
+        btn.style.cssText = 'width: 100%; padding: 6px; font-size: 11px; text-align: left;';
+        btn.textContent = `[${this.value}] ${editor.getSwitchName(this.value)}`;
+        btn.onclick = () => {editor.showSwitchSelector(this.value, (newId) => this.onChange(newId));};
         return btn;
     }
 
-    update() {
-        const id = this.value ?? 1;
-        const name = em?.getSwitchName?.(id) || '';
-        this.html.textContent = `#${String(id).padStart(4, '0')} ${name}`;
+    onChange(id){
+        this.value = id || this.value;
+        const name = editor.getSwitchName(this.value);
+        this.html.textContent = `[${this.value}] ${name}`;
+        this.change(this.value);
     }
 }
 
@@ -3024,7 +2631,7 @@ class VariableFieldEditor extends FieldEditor {
 
     update() {
         const id = this.value ?? 1;
-        const name = em?.getVariableName?.(id) || '';
+        const name = editor.getVariableName(id);
         this.html.textContent = `#${String(id).padStart(4, '0')} ${name}`;
     }
 }

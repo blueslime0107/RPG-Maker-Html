@@ -29,6 +29,26 @@
 					"label": ""
 				}
 			]
+		},
+		{
+			"path": "script/EventEditor.js",
+			"bookmarks": [
+				{
+					"line": 80,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "index.html",
+			"bookmarks": [
+				{
+					"line": 305,
+					"column": 0,
+					"label": ""
+				}
+			]
 		}
 	]
 }
