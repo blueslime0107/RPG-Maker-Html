@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    // "checkJs": true,
+    // "allowJs": true,
+    "lib": ["DOM", "ES2020"],
+    "moduleResolution": "node"
+  },
+  "include": ["./**/*.js", "./**/*.d.ts"]
+}

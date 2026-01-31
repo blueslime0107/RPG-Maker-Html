@@ -160,7 +160,7 @@ class MainEditor {
     loadMap(id) {
         this.map = main.data.maps[id]
         this.mapInfo = main.data.mapInfos[id]
-        this.events = this.map.events.filter(x => x != null);
+        this.events = this.map.events
 
         this.tileEditor.update()
         this.mapviewer.update()
@@ -196,7 +196,12 @@ class MainEditor {
         return this.getEvent(x, y, exception)
     }
     getEvent(x, y, exception=null) {
-        return this.events.find(ev => ev.x === x && ev.y === y && ev.id !== (exception ? exception.id : null));
+        return this.events.find(
+            ev => ev !== null && 
+            ev.x === x && 
+            ev.y === y && 
+            ev.id !== (exception ? exception.id : null)
+        );
     }
 
     // 통합 맵 데이터 접근 헬퍼 (읽기)

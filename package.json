@@ -1,0 +1,13 @@
+{
+  "name": "mygame",
+  "main": "index.html",
+  "window": {
+    "title": "My NWJS Game",
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false,
+    "resizable": true, 
+    "fullscreenable": true 
+  },
+  "chromium-args": "--disable-web-security --allow-file-access-from-files"
+}

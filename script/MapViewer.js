@@ -17,7 +17,7 @@ class MapViewer {
         this.mapZoom = 1
         this.mapPanX = 0;
         this.mapPanY = 0;
-        this.blueCirclePosition = null;
+        this.selectTilePos = null;
         this.rectSelectPos = null;
         this.isPainting = false;
 
@@ -118,7 +118,7 @@ class MapViewer {
                 editor.showContextMenu(this,e, [
                 {
                     label: '편집',
-                    action: () => eventEditor.loadEventToInspector(event)
+                    action: () => eventEditor.showInspector(event)
                 },
                 {
                     label: '복사 (Ctrl+C)',
@@ -131,32 +131,30 @@ class MapViewer {
                 }
                 ],() => {
                     console.log("삭제")
-                    this.blueCirclePosition = null;
+                    this.selectTilePos = null;
                     this.updateMapOverlay(this.x,this.y)
                 })
             } else {
                 editor.showContextMenu(this,e, [
                     {
                         label: '플레이어',
-                        action: () => this.setPlayerStart(this.x,this.y)
+                        action: () => this.setPlayerStart(this.selectTilePos.x, this.selectTilePos.y)
                     },
                     {
                         label: '이벤트 생성',
-                        action: () => this.createEvent(this.blueCirclePosition.x, this.blueCirclePosition.y)
+                        action: () => this.createEvent(this.selectTilePos.x, this.selectTilePos.y)
                     },
                     {
                         label: '붙여넣기 (Ctrl+V)',
-                        action: () => this.pasteEvent(this.blueCirclePosition.x, this.blueCirclePosition.y),
+                        action: () => this.pasteEvent(this.selectTilePos.x, this.selectTilePos.y),
                         disabled: !editor.clipboard
                     }
                 ],() => {
-                    console.log("삭제")
-                    this.blueCirclePosition = null;
+                    this.selectTilePos = null;
                     this.updateMapOverlay(this.x,this.y)
                 })
             }
-            this.blueCirclePosition = {x: this.x, y: this.y};
-            console.log("생성")
+            this.selectTilePos = {x: this.x, y: this.y};
         });
         // 마우스 휠 이벤트: 확대/축소
         this.mapCanvas.addEventListener('wheel', (e) => {
@@ -202,10 +200,10 @@ class MapViewer {
         }
     }
     drawBlueCircle(){
-        if (!this.blueCirclePosition) {return}
+        if (!this.selectTilePos) {return}
         const ctx = this.mapOverlay.getContext('2d');
-        const centerX = this.blueCirclePosition.x * 48 + 24;
-        const centerY = this.blueCirclePosition.y * 48 + 24;
+        const centerX = this.selectTilePos.x * 48 + 24;
+        const centerY = this.selectTilePos.y * 48 + 24;
         const radius = 20;
         
         ctx.strokeStyle = 'rgba(52, 152, 219, 1)';
@@ -468,6 +466,7 @@ class MapViewer {
         // 이벤트 렌더링
         this.drawPlayer();
         for (const event of editor.events) {
+            if(!event){continue;}
             this.drawCharacter(event);
         }
     }
@@ -541,8 +540,6 @@ class MapViewer {
         ctx.font = '10px sans-serif';
         ctx.fillText(event.id, dx + 4, dy + 14);
     }
-
-    
     // 이벤트 생성
     createEvent(x, y) {
         const newId = editor.getNextEventId();
@@ -596,7 +593,7 @@ class MapViewer {
 
         editor.events[newId] = newEvent;
         this.renderEvent();
-        eventEditor.loadEventToInspector(newEvent);
+        eventEditor.showInspector(newEvent);
         console.log(`이벤트 생성: ID ${newId}, (${x}, ${y})`);
     }
     // 이벤트 복사
@@ -622,19 +619,10 @@ class MapViewer {
 
     // 이벤트 삭제
     deleteEvent(event) {
-        if (!confirm(`이벤트 ${event.id}를 삭제하시겠습니까?`)) return;
 
-        this.map.events[event.id] = null;
-        this.events = this.map.events.filter(x => x != null);
-
-        // 인스펙터가 삭제된 이벤트를 표시 중이면 초기화
-        if (this.selectedEvent && this.selectedEvent.id === event.id) {
-            this.selectedEvent = null;
-            document.getElementById('inspector-main').style.display = 'none';
-            document.getElementById('inspector-empty').style.display = 'block';
-        }
-
-        this.loadEvent();
+        editor.events[event.id] = null;
+        eventEditor.hideInspector()
+        this.renderEvent();
         console.log('이벤트 삭제:', event.id);
     }
 }
