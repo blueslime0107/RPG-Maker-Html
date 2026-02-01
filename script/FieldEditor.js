@@ -146,24 +146,51 @@ class VariableFieldEditor extends FieldEditor {
  */
 class SelectFieldEditor extends FieldEditor {
 
+    getOptions(options) {
+        this.options = options;
+        return 
+    }
+
     createHtml(obj) {
-        this.options = obj.options;
+        this.options = []
+        this.getOptions(obj.options)
+        
+        const container = document.createElement('label');
+        container.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+            margin-bottom: 4px;
+        `;
+        
+        const labelText = document.createElement('span');
+        labelText.textContent = obj.label; // 여기에 내용 입력
+
         const select = document.createElement('select');
         select.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
+        console.log(this.options)
         this.options.forEach((opt, index) => {
             const option = document.createElement('option');
-            option.value = index;
-            option.textContent = opt;
+            if(opt.value !== undefined){
+                option.value = opt.value;
+                option.textContent = opt.label;
+            }else{
+                option.value = index;
+                option.textContent = opt;
+            }
             select.appendChild(option);
         });
         select.addEventListener('change', (e) => {
             this.value = parseInt(e.target.value);
             this.onChange(this.value);
         });
-        return select;
+        container.appendChild(labelText);
+        container.appendChild(select);
+        this.select = select;
+        return container;
     }
     onChange(id){
-        this.value = id;
+        this.select.value = id;
         this.change(this.value);
     }
 }
@@ -180,13 +207,24 @@ class SelectAni extends SelectFieldEditor {
 }
 class SelectSpeed extends SelectFieldEditor {
     getOptions() {
-        return [
+        this.options = [
             { value: 1, label: '1: 가장 느림' },
             { value: 2, label: '2: 느림' },
             { value: 3, label: '3: 보통' },
             { value: 4, label: '4: 빠름' },
             { value: 5, label: '5: 더 빠름' },
             { value: 6, label: '6: 가장 빠름' }
+        ]
+    }
+}
+class SelectFrequency extends SelectFieldEditor {
+    getOptions() {
+        this.options = [
+            { value: 1, label: '1: 가장 느림' },
+            { value: 2, label: '2: 느림' },
+            { value: 3, label: '3: 보통' },
+            { value: 4, label: '4: 빠름' },
+            { value: 5, label: '5: 더 빠름' }
         ]
     }
 }

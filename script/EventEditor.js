@@ -243,6 +243,62 @@ class EventEditor {
             return this.throughToggle.html;
         })());
         
+        const toggleContainer = document.getElementById('ins-toggle');
+        toggleContainer.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 8px;
+        `;
+        toggleContainer.append(...(() => {
+            this.priorityTypeSelect = new SelectFieldEditor({
+                label: '우선권',
+                options: ['아래', '동일', '위'],
+                change: (value) => {
+                    this.page.priorityType = value;
+                }
+            })
+            this.priorityTypeSelect.html.style.cssText += `grid-column: span 2;`
+            
+            this.triggerSelect = new SelectFieldEditor({
+                label: '발동',
+                options: ['결정키', '플레이어 접근', '이벤트 접근', '자동 실행', '병렬 처리'],
+                change: (value) => {
+                    this.page.trigger = value;
+                }
+            })
+            this.triggerSelect.html.style.cssText += `grid-column: span 2;`
+
+            this.moveTypeSelect = new SelectFieldEditor({
+                label: '이동방식',
+                options: ['고정', '랜덤', '접근', '커스텀'],
+                change: (value) => {
+                    this.page.moveType = value;
+                }
+            })
+            this.moveCustomButton = new SelectFieldEditor({
+                label: '발동',
+                options: ['결정키', '플레이어 접근', '이벤트 접근', '자동 실행', '병렬 처리'],
+                change: (value) => {
+                    this.page.moveType = value;
+                }
+            })
+            this.moveSpeedSelect = new SelectSpeed({
+                label: '속도',
+                change: (value) => {
+                    this.page.moveSpeed = value;
+                }
+            })
+            this.moveFrequencySelect = new SelectFrequency({
+                label: '빈도',
+                change: (value) => {
+                    this.page.moveFrequency = value;
+                }
+            })
+
+
+            return [this.priorityTypeSelect.html, this.triggerSelect.html, this.moveTypeSelect.html, this.moveCustomButton.html, this.moveSpeedSelect.html, this.moveFrequencySelect.html];
+        })());
     }
     
     // 탭 전환 (페이지 설정 / 실행 내용)
@@ -299,7 +355,7 @@ class EventEditor {
         this.switch1Toggle.onChange(this.condition.switch1Valid)
         this.switch2Field.onChange(this.condition.switch2Id)
         this.switch2Toggle.onChange(this.condition.switch2Valid)
-        this.selfSwitchField.onChange(this.condition.selfSwitchCh)
+        this.selfSwitchField.onChange(['A','B','C','D'].indexOf(this.condition.selfSwitchCh))
         this.selfSwitchToggle.onChange(this.condition.selfSwitchValid)
         this.variableField.onChange(this.condition.variableId)
         this.variableToggle.onChange(this.condition.variableValid)
@@ -309,6 +365,11 @@ class EventEditor {
         this.walkAnimeToggle.onChange(this.page.walkAnime)
         this.directionFixToggle.onChange(this.page.directionFix)
         this.throughToggle.onChange(this.page.through)
+        this.priorityTypeSelect.onChange(this.page.priorityType)
+        this.triggerSelect.onChange(this.page.trigger)
+        this.moveTypeSelect.onChange(this.page.moveType)
+        this.moveSpeedSelect.onChange(this.page.moveSpeed)
+        this.moveFrequencySelect.onChange(this.page.moveFrequency)
     }
     hideInspector(){
         this.event = null;
