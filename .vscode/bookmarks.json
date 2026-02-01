@@ -49,6 +49,16 @@
 					"label": ""
 				}
 			]
+		},
+		{
+			"path": "script/EventCodeEditor.js",
+			"bookmarks": [
+				{
+					"line": 1485,
+					"column": 0,
+					"label": ""
+				}
+			]
 		}
 	]
 }

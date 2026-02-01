@@ -126,7 +126,9 @@ class EventEditor {
             this.selfSwitchField = new SelectFieldEditor({
                 options: ['A', 'B', 'C', 'D'],
                 valiable: false,
-                change: (value) => { this.condition.selfSwitchCh = this.selfSwitchField.options[value]; },
+                change: (value) => { 
+                    this.condition.selfSwitchCh = this.selfSwitchField.options[value]; 
+                },
             });
             container.appendChild(this.selfSwitchToggle.html);
             container.appendChild(this.selfSwitchField.html);
@@ -314,19 +316,13 @@ class EventEditor {
         } else if (tabName === 'commands') {
             document.getElementById('ins-commands-content').style.display = 'flex';
             document.querySelector('[data-tab="commands"]').classList.add('active');
-
-            // 커맨드 목록 업데이트
-            if (this.event && this.pageIndex !== undefined) {
-                const page = this.event.pages[this.pageIndex];
-                if (page) {
-                    this.editor.displayCommandList(page.list);
-                }
-            }
+            this.editor.displayCommandList(this.page.list);
         }
     }
 
     // 인스펙터에 데이터 로드
     showInspector(event) {
+        console.log("shoiw")
         this.event = event; // 현재 선택된 이벤트 보관
         this.pageIndex = 0; // 현재 페이지 인덱스 초기화
 
@@ -355,7 +351,9 @@ class EventEditor {
         this.switch1Toggle.onChange(this.condition.switch1Valid)
         this.switch2Field.onChange(this.condition.switch2Id)
         this.switch2Toggle.onChange(this.condition.switch2Valid)
-        this.selfSwitchField.onChange(['A','B','C','D'].indexOf(this.condition.selfSwitchCh))
+        let index = ['A','B','C','D'].indexOf(this.condition.selfSwitchCh)
+        console.log(index)
+        this.selfSwitchField.onChange(index)
         this.selfSwitchToggle.onChange(this.condition.selfSwitchValid)
         this.variableField.onChange(this.condition.variableId)
         this.variableToggle.onChange(this.condition.variableValid)

@@ -168,7 +168,6 @@ class SelectFieldEditor extends FieldEditor {
 
         const select = document.createElement('select');
         select.style.cssText = `width: 100%; padding: 6px; background-color: #3a3a3a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 11px;`;
-        console.log(this.options)
         this.options.forEach((opt, index) => {
             const option = document.createElement('option');
             if(opt.value !== undefined){
@@ -182,7 +181,7 @@ class SelectFieldEditor extends FieldEditor {
         });
         select.addEventListener('change', (e) => {
             this.value = parseInt(e.target.value);
-            this.onChange(this.value);
+            this.onChange(this.value || 0);
         });
         container.appendChild(labelText);
         container.appendChild(select);
@@ -192,6 +191,10 @@ class SelectFieldEditor extends FieldEditor {
     onChange(id){
         this.select.value = id;
         this.change(this.value);
+    }
+    toggleValiable(value){
+        super.toggleValiable(value);
+        this.select.disabled = !this.valiable
     }
 }
 

@@ -1,122 +1,124 @@
-/**
- * EventEditor.js
- * 이벤트 코드 편집 기능을 담당하는 클래스
- */
-class Command {
-    constructor(cmd, index, list) {
-        this.cmd = cmd;
-        this.index = index;
-        this.list = list;
-    }
 
-    get code() {
-        return this.cmd.code;
-    }
-
-    get indent() {
-        return this.cmd.indent;
-    }
-
-    get parameters() {
-        return this.cmd.parameters;
-    }
-
-    set parameters(value) {
-        this.cmd.parameters = value;
-    }
-
-    /**
-     * 특정 인덱스부터 특정 코드를 찾아서 인덱스 반환
-     * @param {number} targetCode - 찾을 코드
-     * @param {boolean} inclusive - true면 찾은 인덱스+1 반환, false면 찾은 인덱스 반환
-     * @returns {number} 찾은 인덱스 (못 찾으면 list.length)
-     */
-    findNextCode(targetCode, inclusive = true) {
-        const startIndex = this.index + 1;
-
-        for (let i = startIndex; i < this.list.length; i++) {
-            if (this.list[i].code === targetCode) {
-                return inclusive ? i + 1 : i;
-            }
-        }
-        return this.list.length;
-    }
-
-    /**
-     * 특정 인덱스부터 연속된 특정 코드들을 모두 수집
-     * @param {number} targetCode - 수집할 코드
-     * @returns {Array<Object>} 수집된 커맨드 객체들
-     */
-    collectCodes(targetCode) {
-        const startIndex = this.index + 1;
-
-        const collected = [];
-        for (let i = startIndex; i < this.list.length; i++) {
-            if (this.list[i].code === targetCode) {
-                collected.push(this.list[i]);
-            } else {
-                break;
-            }
-        }
-        return collected;
-    }
-
-    /**
-     * 특정 인덱스부터 연속된 특정 코드의 개수를 세기
-     * @param {number} targetCode - 셀 코드
-     * @returns {number} 연속된 코드의 개수
-     */
-    countConsecutiveCodes(targetCode) {
-        const startIndex = this.index + 1;
-
-        let count = 0;
-        for (let i = startIndex; i < this.list.length; i++) {
-            if (this.list[i].code === targetCode) {
-                count++;
-            } else {
-                break;
-            }
-        }
-        return count;
-    }
-
-    /**
-     * 연속된 코드들을 제거
-     * @param {number} targetCode - 제거할 코드
-     * @returns {number} 제거된 개수
-     */
-    removeCodes(targetCode) {
-        const startIndex = this.index + 1;
-
-        const count = this.countConsecutiveCodes(targetCode);
-        if (count > 0) {
-            this.list.splice(startIndex, count);
-        }
-        return count;
-    }
-
-    /**
-     * 현재 위치부터 위로 올라가면서 특정 코드를 찾아서 커맨드 반환
-     * @param {number} targetCode - 찾을 코드
-     * @returns {Object|null} 찾은 커맨드 객체 (못 찾으면 null)
-     */
-    findParentCode(targetCode) {
-        const startIndex = this.index - 1;
-
-        for (let i = startIndex; i >= 0; i--) {
-            if (this.list[i].code === targetCode) {
-                return this.list[i];
-            }
-        }
-        return null;
-    }
-}
 
 class EventCodeEditor {
     constructor(contentsList) {
         // 순수하게 코드 편집 기능만 제공
-        this.currentContentsList = contentsList; // 현재 렌더링중인 contentsList 요소
+        this.canvas = contentsList; 
     }
+
+    
+    /**
+     * 커맨드 목록 표시 (선택 상태 유지)
+     * @param {Array} cmdList - 커맨드 리스트 (page.list 또는 commonEvent.list)
+     * @param {HTMLElement} targetElement - 렌더링할 대상 요소 (선택사항, 기본값: ins-contents-list)
+     */
+    displayCommandList(cmdList) {
+
+        console.log("getList",cmdList)
+
+        cmdList.forEach((cmd, index) => {
+            this.addCommand(cmd,index)
+            return;
+
+            // // 커맨드 데이터 저장
+            // cmdDiv.dataset.commandIndex = index;
+            // cmdDiv.dataset.commandCode = cmd.code;
+
+            // // 이전 선택 복원
+            // if (previousSelection && previousSelection.indices.includes(index)) {
+            //     cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+            // }
+
+            // 마우스 호버 이벤트
+            cmdDiv.addEventListener('mouseenter', (e) => {
+                // 현재 선택된 항목이 아닐 때만 호버 효과
+                cmdDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                // if (!em.selectedCommand || !em.selectedCommand.indices.includes(index)) {
+                // }
+            });
+
+            cmdDiv.addEventListener('mouseleave', (e) => {
+                // 현재 선택된 항목이면 선택 색상 유지, 아니면 투명
+                cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+                return
+                if (em.selectedCommand && em.selectedCommand.indices.includes(index)) {
+                } else {
+                    cmdDiv.style.backgroundColor = 'transparent';
+                }
+            });
+
+            // 클릭 이벤트 (선택)
+            cmdDiv.addEventListener('click', (e) => {
+                if (e.shiftKey && em.selectedCommandAnchor !== undefined) {
+                    // Shift 클릭: 범위 선택 (anchor 기준)
+                    e.preventDefault();
+                    this.selectCommandRange(em.selectedCommandAnchor, index, cmdList);
+                } else {
+                    // 일반 클릭: 단일/연결 선택 및 anchor 설정
+                    this.selectCommand(cmdDiv, cmd, index, cmdList, e);
+                    em.selectedCommandAnchor = index;
+                }
+            });
+
+            // 텍스트 선택 방지
+            cmdDiv.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+            cmdDiv.style.userSelect = 'none';
+
+            // 더블클릭 이벤트 (편집)
+            cmdDiv.addEventListener('dblclick', (e) => {
+                this.editCommand(cmd, index, cmdList);
+            });
+
+            // 우클릭 이벤트 (컨텍스트 메뉴)
+            cmdDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.selectCommand(cmdDiv, cmd, index, cmdList);
+                em.showCommandContextMenu(e.pageX, e.pageY, cmd, index, { list: cmdList });
+            });
+            
+
+            const commandText = this.getCommandText(cmd.code, cmd.parameters, new Command(cmd, index, commands));
+
+            // selectable 속성 확인: parentCode가 있으면 선택 불가
+            const selectable = !(definition && definition.parentCode !== undefined);
+            const prefixStr = selectable ? '<span style="color: #888;">◆</span>' : ''
+
+
+            cmdDiv.innerHTML = `${prefixStr}${commandText}`;
+            this.canvas.appendChild(cmdDiv);
+        });
+        return
+
+        // 선택 상태 복원
+        if (previousSelection) {
+            const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
+            em.selectedCommandElements = [];
+            
+            previousSelection.indices.forEach(idx => {
+                const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === idx);
+                if (cmdDiv) {
+                    em.selectedCommandElements.push(cmdDiv);
+                }
+            });
+            
+            if (em.selectedCommandElements.length > 0) {
+                const lastIndex = previousSelection.index;
+                const lastCmd = commands[lastIndex];
+                em.selectedCommandElement = em.selectedCommandElements[em.selectedCommandElements.length - 1];
+                em.selectedCommand = { cmd: lastCmd, index: lastIndex, indices: previousSelection.indices };
+            }
+        }
+    }
+
+    addCommand(cmd,index) {
+        console.log(cmd,index)
+        const command = new Command(cmd, index)
+        this.canvas.appendChild(command.html);
+    }
+    
 
     /**
      * 커맨드 편집
@@ -1042,7 +1044,7 @@ class EventCodeEditor {
                 const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
                 // 자식 코드가 아니면 선택
                 if (!definition || definition.parentCode === undefined) {
-                    const contentsList = this.currentContentsList;
+                    const contentsList = this.canvas;
                     if (!contentsList) break;
                     const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
                     const nextCmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === nextIndex);
@@ -1144,7 +1146,7 @@ class EventCodeEditor {
             }
 
             // DOM 요소 찾기 및 하이라이트
-            const contentsList = this.currentContentsList
+            const contentsList = this.canvas
             const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
             
             em.selectedCommandElements = [];
@@ -1197,7 +1199,7 @@ class EventCodeEditor {
         }
 
         // 선택된 인덱스들의 DOM 요소 찾기 및 하이라이트
-        const contentsList = this.currentContentsList
+        const contentsList = this.canvas
         const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
         
         em.selectedCommandElements = [];
@@ -1283,7 +1285,7 @@ class EventCodeEditor {
             const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
             // 자식 코드가 아니면 선택
             if (!definition || definition.parentCode === undefined) {
-                const contentsList = this.currentContentsList;
+                const contentsList = this.canvas;
                 const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
                 const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === i);
                 
@@ -1313,7 +1315,7 @@ class EventCodeEditor {
             const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
             // 자식 코드가 아니면 선택
             if (!definition || definition.parentCode === undefined) {
-                const contentsList = this.currentContentsList
+                const contentsList = this.canvas
                 const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
                 const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === i);
                 
@@ -1391,7 +1393,7 @@ class EventCodeEditor {
         }
 
         // DOM 요소 찾기 및 하이라이트
-        const contentsList = this.currentContentsList
+        const contentsList = this.canvas
         const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
         
         em.selectedCommandElements = [];
@@ -1462,7 +1464,7 @@ class EventCodeEditor {
 
         // 방금 추가한 커맨드 선택 및 편집
         setTimeout(() => {
-            const contentsList = this.currentContentsList;
+            const contentsList = this.canvas;
             const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
             const newCmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === index);
             
@@ -1478,139 +1480,6 @@ class EventCodeEditor {
         }, 0);
     }
 
-    /**
-     * 커맨드 목록 표시 (선택 상태 유지)
-     * @param {Array} list - 커맨드 리스트 (page.list 또는 commonEvent.list)
-     * @param {HTMLElement} targetElement - 렌더링할 대상 요소 (선택사항, 기본값: ins-contents-list)
-     */
-    displayCommandList(list) {
-        const contentsList = this.currentContentsList;
-
-        // 현재 선택 상태 저장
-        const previousSelection = null;
-
-        contentsList.innerHTML = '';
-
-        const commands = list || [];
-
-        if (commands.length === 0) {
-            contentsList.innerHTML = '<div style="color: #666; padding: 2px 4px;">◆</div>';
-            return;
-        }
-
-        commands.forEach((cmd, index) => {
-            if (!cmd) return;
-
-            // childCodes에 정의된 자식 코드는 표시하지 않음
-            const definition = EVENT_COMMAND_DEFINITIONS[cmd.code];
-
-            const indent = (cmd.indent || 0) * 20;
-            const color = this.getCommandColor(cmd.code);
-
-            // 메인 커맨드 라인
-            const cmdDiv = document.createElement('div');
-            cmdDiv.style.cssText = `
-            padding: 2px 4px;
-            margin-left: ${indent}px;
-            color: ${color};
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            line-height: 1.4;
-            cursor: pointer;
-            border-radius: 2px;
-            transition: background-color 0.15s;
-        `;
-
-            // 커맨드 데이터 저장
-            cmdDiv.dataset.commandIndex = index;
-            cmdDiv.dataset.commandCode = cmd.code;
-
-            // 이전 선택 복원
-            if (previousSelection && previousSelection.indices.includes(index)) {
-                cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
-            }
-
-            // 마우스 호버 이벤트
-            cmdDiv.addEventListener('mouseenter', (e) => {
-                // 현재 선택된 항목이 아닐 때만 호버 효과
-                if (!em.selectedCommand || !em.selectedCommand.indices.includes(index)) {
-                    cmdDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                }
-            });
-
-            cmdDiv.addEventListener('mouseleave', (e) => {
-                // 현재 선택된 항목이면 선택 색상 유지, 아니면 투명
-                if (em.selectedCommand && em.selectedCommand.indices.includes(index)) {
-                    cmdDiv.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
-                } else {
-                    cmdDiv.style.backgroundColor = 'transparent';
-                }
-            });
-
-            // 클릭 이벤트 (선택)
-            cmdDiv.addEventListener('click', (e) => {
-                if (e.shiftKey && em.selectedCommandAnchor !== undefined) {
-                    // Shift 클릭: 범위 선택 (anchor 기준)
-                    e.preventDefault();
-                    this.selectCommandRange(em.selectedCommandAnchor, index, list);
-                } else {
-                    // 일반 클릭: 단일/연결 선택 및 anchor 설정
-                    this.selectCommand(cmdDiv, cmd, index, list, e);
-                    em.selectedCommandAnchor = index;
-                }
-            });
-
-            // 텍스트 선택 방지
-            cmdDiv.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-            });
-            cmdDiv.style.userSelect = 'none';
-
-            // 더블클릭 이벤트 (편집)
-            cmdDiv.addEventListener('dblclick', (e) => {
-                this.editCommand(cmd, index, list);
-            });
-
-            // 우클릭 이벤트 (컨텍스트 메뉴)
-            cmdDiv.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.selectCommand(cmdDiv, cmd, index, list);
-                em.showCommandContextMenu(e.pageX, e.pageY, cmd, index, { list });
-            });
-            
-
-            const commandText = this.getCommandText(cmd.code, cmd.parameters, new Command(cmd, index, commands));
-
-            // selectable 속성 확인: parentCode가 있으면 선택 불가
-            const selectable = !(definition && definition.parentCode !== undefined);
-            const prefixStr = selectable ? '<span style="color: #888;">◆</span>' : ''
-
-
-            cmdDiv.innerHTML = `${prefixStr}${commandText}`;
-            contentsList.appendChild(cmdDiv);
-        });
-
-        // 선택 상태 복원
-        if (previousSelection) {
-            const allCmdDivs = Array.from(contentsList.children).filter(div => div.dataset.commandIndex);
-            em.selectedCommandElements = [];
-            
-            previousSelection.indices.forEach(idx => {
-                const cmdDiv = allCmdDivs.find(div => parseInt(div.dataset.commandIndex) === idx);
-                if (cmdDiv) {
-                    em.selectedCommandElements.push(cmdDiv);
-                }
-            });
-            
-            if (em.selectedCommandElements.length > 0) {
-                const lastIndex = previousSelection.index;
-                const lastCmd = commands[lastIndex];
-                em.selectedCommandElement = em.selectedCommandElements[em.selectedCommandElements.length - 1];
-                em.selectedCommand = { cmd: lastCmd, index: lastIndex, indices: previousSelection.indices };
-            }
-        }
-    }
 
     /**
      * 커맨드 추가 라인 표시 (더 이상 사용하지 않음 - childCodes로 대체)
@@ -1685,26 +1554,188 @@ class EventCodeEditor {
         return `[${code}]`;
     }
 
-    /**
-     * 코드별 텍스트 색상 가이드
-     */
-    getCommandColor(code) {
-        if (code === 101 || code === 401) return '#fff'; // 메시지: 흰색
-        if (code === 111) return '#ffea00'; // 조건 분기: 노란색
-        if (code === 122 || code === 121) return '#ffa500'; // 변수/스위치: 주황색
-        return '#ccc'; // 기본
+}
+
+/**
+ * EventEditor.js
+ * 이벤트 코드 편집 기능을 담당하는 클래스
+ */
+class Command {
+    constructor(cmd, index) {
+        this.cmd = cmd;
+        this.cmdef = EVENT_COMMAND_DEFINITIONS[cmd.code];
+        this.index = index;
+        this.html = this.createHtml()
+    }
+    createHtml() {
+        // 메인 커맨드 라인
+        const cmdHtml = document.createElement('div');
+        cmdHtml.style.cssText = `
+            padding: 2px 4px;
+            margin-left: ${(this.cmd.indent || 0) * 20}px;
+            color: ${this.getCommandColor()};
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.4;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background-color 0.15s;
+        `;
+        
+        // 마우스 호버 이벤트
+        cmdHtml.addEventListener('mouseenter', (e) => {
+            // 현재 선택된 항목이 아닐 때만 호버 효과
+            if(this.isNotSelectable()){
+                cmdHtml.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            }else{
+                cmdHtml.style.backgroundColor = 'rgba(64, 128, 255, 0.4)';
+
+            }
+            // if (!em.selectedCommand || !em.selectedCommand.indices.includes(index)) {
+            // }
+        });
+
+        cmdHtml.addEventListener('mouseleave', (e) => {
+            // 현재 선택된 항목이면 선택 색상 유지, 아니면 투명
+            cmdHtml.style.backgroundColor = 'transparent';
+            // cmdHtml.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            return
+            if (em.selectedCommand && em.selectedCommand.indices.includes(index)) {
+            } else {
+                cmdDiv.style.backgroundColor = 'transparent';
+            }
+        });
+
+        const commandText = this.getCommandText();
+
+        // selectable 속성 확인: parentCode가 있으면 선택 불가
+        const selectable = !(this.cmdef && this.cmdef.parentCode !== undefined);
+        const prefixStr = selectable ? '<span style="color: #888;">◆</span>' : ''
+
+
+        cmdHtml.innerHTML = `${prefixStr}${commandText}`;
+        return cmdHtml;
     }
 
+    getCommandColor() {
+        // if (code === 101 || code === 401) return '#fff'; // 메시지: 흰색
+        // if (code === 111) return '#ffea00'; // 조건 분기: 노란색
+        // if (code === 122 || code === 121) return '#ffa500'; // 변수/스위치: 주황색
+        return '#ccc'; // 기본
+    }
     /**
      * RPG Maker MZ 커맨드 코드 변환
      */
-    getCommandText(code, parameters, cmd) {
-        const p = parameters || [];
-        // 새로운 정의 시스템 사용
-        const definition = EVENT_COMMAND_DEFINITIONS[code];
-        if (definition && definition.getDisplayText) {
-            return definition.getDisplayText(p, cmd);
+    getCommandText() {
+        if (this.cmdef && this.cmdef.getDisplayText) {
+            return this.cmdef.getDisplayText(this.cmd.parameters);
         }
-        return `[코드 ${code}]`;
+        return `[코드 ${this.cmd.code}]`;
+    }
+
+    isNotSelectable() {
+        return this.cmdef && this.cmdef.parentCode !== undefined;
+    }
+
+    get code() {
+        return this.cmd.code;
+    }
+
+    get indent() {
+        return this.cmd.indent;
+    }
+
+    get parameters() {
+        return this.cmd.parameters;
+    }
+
+    set parameters(value) {
+        this.cmd.parameters = value;
+    }
+
+    /**
+     * 특정 인덱스부터 특정 코드를 찾아서 인덱스 반환
+     * @param {number} targetCode - 찾을 코드
+     * @param {boolean} inclusive - true면 찾은 인덱스+1 반환, false면 찾은 인덱스 반환
+     * @returns {number} 찾은 인덱스 (못 찾으면 list.length)
+     */
+    findNextCode(targetCode, inclusive = true) {
+        const startIndex = this.index + 1;
+
+        for (let i = startIndex; i < this.list.length; i++) {
+            if (this.list[i].code === targetCode) {
+                return inclusive ? i + 1 : i;
+            }
+        }
+        return this.list.length;
+    }
+
+    /**
+     * 특정 인덱스부터 연속된 특정 코드들을 모두 수집
+     * @param {number} targetCode - 수집할 코드
+     * @returns {Array<Object>} 수집된 커맨드 객체들
+     */
+    collectCodes(targetCode) {
+        const startIndex = this.index + 1;
+
+        const collected = [];
+        for (let i = startIndex; i < this.list.length; i++) {
+            if (this.list[i].code === targetCode) {
+                collected.push(this.list[i]);
+            } else {
+                break;
+            }
+        }
+        return collected;
+    }
+
+    /**
+     * 특정 인덱스부터 연속된 특정 코드의 개수를 세기
+     * @param {number} targetCode - 셀 코드
+     * @returns {number} 연속된 코드의 개수
+     */
+    countConsecutiveCodes(targetCode) {
+        const startIndex = this.index + 1;
+
+        let count = 0;
+        for (let i = startIndex; i < this.list.length; i++) {
+            if (this.list[i].code === targetCode) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 연속된 코드들을 제거
+     * @param {number} targetCode - 제거할 코드
+     * @returns {number} 제거된 개수
+     */
+    removeCodes(targetCode) {
+        const startIndex = this.index + 1;
+
+        const count = this.countConsecutiveCodes(targetCode);
+        if (count > 0) {
+            this.list.splice(startIndex, count);
+        }
+        return count;
+    }
+
+    /**
+     * 현재 위치부터 위로 올라가면서 특정 코드를 찾아서 커맨드 반환
+     * @param {number} targetCode - 찾을 코드
+     * @returns {Object|null} 찾은 커맨드 객체 (못 찾으면 null)
+     */
+    findParentCode(targetCode) {
+        const startIndex = this.index - 1;
+
+        for (let i = startIndex; i >= 0; i--) {
+            if (this.list[i].code === targetCode) {
+                return this.list[i];
+            }
+        }
+        return null;
     }
 }
